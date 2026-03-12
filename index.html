@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>HomeKeep</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #1e293b; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const { useState, useEffect } = React;
+
+const initialEquipment = [
+  { id: 1, name: "Lawn Mower", brand: "Honda", model: "HRX217VKA", serial: "MAGA-1234567", icon: "🌿",
+    tasks: [
+      { id: 1, name: "Change oil", intervalDays: 90, lastDone: "2025-12-10" },
+      { id: 2, name: "Replace air filter", intervalDays: 180, lastDone: "2025-09-01" },
+      { id: 3, name: "Sharpen blade", intervalDays: 60, lastDone: "2025-11-15" },
+      { id: 4, name: "Replace spark plug", intervalDays: 365, lastDone: "2025-03-01" },
+    ]},
+  { id: 2, name: "HVAC System", brand: "Carrier", model: "24ACC636A003", serial: "CARR-9876543", icon: "❄️",
+    tasks: [
+      { id: 1, name: "Replace air filter", intervalDays: 30, lastDone: "2026-02-10" },
+      { id: 2, name: "Clean condenser coils", intervalDays: 365, lastDone: "2025-05-01" },
+      { id: 3, name: "Check refrigerant", intervalDays: 365, lastDone: "2025-05-01" },
+    ]},
+  { id: 3, name: "Generator", brand: "Generac", model: "GP3500iO", serial: "GENR-5551234", icon: "⚡",
+    tasks: [
+      { id: 1, name: "Change oil", intervalDays: 180, lastDone: "2025-10-01" },
+      { id: 2, name: "Run test cycle", intervalDays: 30, lastDone: "2026-02-01" },
+      { id: 3, name: "Replace spark plug", intervalDays: 365, lastDone: "2025-06-01" },
+    ]},
+  { id: 4, name: "Pressure Washer", brand: "Ryobi", model: "RY142300", serial: "RYOB-7778901", icon: "💧",
+    tasks: [
+      { id: 1, name: "Inspect hoses & fittings", intervalDays: 90, lastDone: "2025-12-01" },
+      { id: 2, name: "Flush pump with cleaner", intervalDays: 180, lastDone: "2025-09-01" },
+    ]},
+];
+
+const REMINDER_CATS = ["General","Weekly","Monthly","Seasonal","Garage","Yard","Indoor"];
+const reminderCatColors = { General:"#64748b",Weekly:"#3b82f6",Monthly:"#8b5cf6",Seasonal:"#f59e0b",Garage:"#78716c",Yard:"#22c55e",Indoor:"#06b6d4" };
+const initialReminders = [
+  { id: 1, text: "Take out the trash", category: "Weekly", done: false, dueDate: "", repeat: "weekly" },
+  { id: 2, text: "Clean up garage", category: "Garage", done: false, dueDate: "", repeat: "none" },
+  { id: 3, text: "Replace smoke detector batteries", category: "Monthly", done: false, dueDate: "2026-04-01", repeat: "none" },
+  { id: 4, text: "Check gutters for debris", category: "Seasonal", done: false, dueDate: "2026-04-15", repeat: "none" },
+  { id: 5, text: "Vacuum and dust living room", category: "Weekly", done: false, dueDate: "", repeat: "weekly" },
+  { id: 6, text: "Deep clean kitchen appliances", category: "Monthly", done: false, dueDate: "2026-03-20", repeat: "none" },
+];
+
+const PROPERTY_PRIORITIES = ["Low","Medium","High","Urgent"];
+const priorityColors = { Low:"#22c55e", Medium:"#3b82f6", High:"#f59e0b", Urgent:"#ef4444" };
+const PROPERTY_AREAS = ["Yard","Driveway","Roof","Foundation","Fencing","Exterior","Drainage","Other"];
+const areaColors = { Yard:"#22c55e",Driveway:"#78716c",Roof:"#3b82f6",Foundation:"#8b5cf6",Fencing:"#ec4899",Exterior:"#06b6d4",Drainage:"#0ea5e9",Other:"#64748b" };
+const initialPropertyTodos = [
+  { id: 1, title: "Remove fallen tree near fence", area: "Yard", priority: "High", done: false, notes: "Large oak fell during last storm.", addedDate: "2026-01-15" },
+  { id: 2, title: "Repair driveway pothole", area: "Driveway", priority: "Medium", done: false, notes: "Two potholes near garage entrance.", addedDate: "2026-02-01" },
+  { id: 3, title: "Fix sagging fence panel", area: "Fencing", priority: "Medium", done: false, notes: "", addedDate: "2026-02-10" },
+  { id: 4, title: "Reseal around back door frame", area: "Exterior", priority: "High", done: false, notes: "Caulk is cracking.", addedDate: "2026-01-20" },
+  { id: 5, title: "Clear drainage ditch", area: "Drainage", priority: "Low", done: false, notes: "Gets blocked with leaves.", addedDate: "2025-11-01" },
+];
+
+function getDueDate(lastDone, intervalDays) {
+  const d = new Date(lastDone); d.setDate(d.getDate() + intervalDays); return d;
+}
+function getDaysUntil(lastDone, intervalDays) {
+  const due = getDueDate(lastDone, intervalDays);
+  const today = new Date(); today.setHours(0,0,0,0); due.setHours(0,0,0,0);
+  return Math.ceil((due - today) / 86400000);
+}
+function dateDiff(dueDate) {
+  if (!dueDate) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(dueDate); due.setHours(0,0,0,0);
+  return Math.ceil((due - today) / 86400000);
+}
+
+function Badge({ days }) {
+  if (days < 0) return <span style={{padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600,background:"#fee2e2",color:"#dc2626",border:"1px solid #fecaca"}}>Overdue {Math.abs(days)}d</span>;
+  if (days <= 7) return <span style={{padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600,background:"#fef3c7",color:"#d97706",border:"1px solid #fde68a"}}>Due in {days}d</span>;
+  if (days <= 30) return <span style={{padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600,background:"#dbeafe",color:"#2563eb",border:"1px solid #bfdbfe"}}>In {days}d</span>;
+  return <span style={{padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600,background:"#dcfce7",color:"#16a34a",border:"1px solid #bbf7d0"}}>In {days}d</span>;
+}
+
+function App() {
+  const load = (key, def) => { try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : def; } catch(e) { return def; }};
+
+  const [equipment, setEquipment] = useState(() => load("hk_eq", initialEquipment));
+  const [history, setHistory] = useState(() => load("hk_hist", []));
+  const [reminders, setReminders] = useState(() => load("hk_rem", initialReminders));
+  const [propertyTodos, setPropertyTodos] = useState(() => load("hk_prop", initialPropertyTodos));
+  const [view, setView] = useState("dashboard");
+  const [selectedEquip, setSelectedEquip] = useState(null);
+  const [activeTab, setActiveTab] = useState("tasks");
+  const [logModal, setLogModal] = useState(null);
+  const [logNote, setLogNote] = useState("");
+  const [logDate, setLogDate] = useState(new Date().toISOString().split("T")[0]);
+  const [showAddEquip, setShowAddEquip] = useState(false);
+  const [newEquip, setNewEquip] = useState({ name:"", brand:"", model:"", serial:"", icon:"🔧" });
+  const [editEquip, setEditEquip] = useState(null);
+  const [deleteEquipId, setDeleteEquipId] = useState(null);
+  const [showAddReminder, setShowAddReminder] = useState(false);
+  const [newReminder, setNewReminder] = useState({ text:"", category:"General", dueDate:"", repeat:"none" });
+  const [reminderFilter, setReminderFilter] = useState("All");
+  const [showDoneReminders, setShowDoneReminders] = useState(false);
+  const [showAddProperty, setShowAddProperty] = useState(false);
+  const [newTodo, setNewTodo] = useState({ title:"", area:"Yard", priority:"Medium", notes:"" });
+  const [propertyFilter, setPropertyFilter] = useState("All");
+  const [showDoneProp, setShowDoneProp] = useState(false);
+  const [expandedTodo, setExpandedTodo] = useState(null);
+
+  useEffect(() => { localStorage.setItem("hk_eq", JSON.stringify(equipment)); }, [equipment]);
+  useEffect(() => { localStorage.setItem("hk_hist", JSON.stringify(history)); }, [history]);
+  useEffect(() => { localStorage.setItem("hk_rem", JSON.stringify(reminders)); }, [reminders]);
+  useEffect(() => { localStorage.setItem("hk_prop", JSON.stringify(propertyTodos)); }, [propertyTodos]);
+
+  const allTasks = equipment.flatMap(eq => eq.tasks.map(t => ({...t, equipId:eq.id, equipName:eq.name, equipIcon:eq.icon, daysUntil:getDaysUntil(t.lastDone,t.intervalDays)}))).sort((a,b)=>a.daysUntil-b.daysUntil);
+  const overdueCount = allTasks.filter(t=>t.daysUntil<0).length;
+  const soonCount = allTasks.filter(t=>t.daysUntil>=0&&t.daysUntil<=7).length;
+  const pendingRem = reminders.filter(r=>!r.done).length;
+  const openProp = propertyTodos.filter(t=>!t.done).length;
+  const urgentProp = propertyTodos.filter(t=>!t.done&&(t.priority==="Urgent"||t.priority==="High")).length;
+
+  function markDone(equipId, taskId) {
+    const eq = equipment.find(e=>e.id===equipId);
+    setLogModal({equipId, task: eq.tasks.find(t=>t.id===taskId)});
+    setLogNote(""); setLogDate(new Date().toISOString().split("T")[0]);
+  }
+  function submitLog() {
+    const {equipId, task} = logModal;
+    setEquipment(prev=>prev.map(eq=>eq.id!==equipId?eq:{...eq,tasks:eq.tasks.map(t=>t.id===task.id?{...t,lastDone:logDate}:t)}));
+    const eq = equipment.find(e=>e.id===equipId);
+    setHistory(prev=>[{id:Date.now(),date:logDate,equipName:eq.name,taskName:task.name,note:logNote},...prev]);
+    setLogModal(null);
+  }
+  function addEquip() {
+    if(!newEquip.name.trim()) return;
+    setEquipment(prev=>[...prev,{id:Date.now(),...newEquip,tasks:[]}]);
+    setNewEquip({name:"",brand:"",model:"",serial:"",icon:"🔧"}); setShowAddEquip(false);
+  }
+  function saveEdit() {
+    if(!editEquip.name.trim()) return;
+    setEquipment(prev=>prev.map(e=>e.id===editEquip.id?{...e,...editEquip}:e));
+    setEditEquip(null);
+  }
+  function delEquip(id) { setEquipment(prev=>prev.filter(e=>e.id!==id)); setDeleteEquipId(null); }
+
+  function addReminder() {
+    if(!newReminder.text.trim()) return;
+    setReminders(p=>[...p,{id:Date.now(),...newReminder,done:false}]);
+    setNewReminder({text:"",category:"General",dueDate:"",repeat:"none"}); setShowAddReminder(false);
+  }
+  function addTodo() {
+    if(!newTodo.title.trim()) return;
+    setPropertyTodos(p=>[...p,{id:Date.now(),...newTodo,done:false,addedDate:new Date().toISOString().split("T")[0]}]);
+    setNewTodo({title:"",area:"Yard",priority:"Medium",notes:""}); setShowAddProperty(false);
+  }
+
+  const activeRem = reminders.filter(r=>!r.done&&(reminderFilter==="All"||r.category===reminderFilter)).sort((a,b)=>(a.dueDate?dateDiff(a.dueDate):9999)-(b.dueDate?dateDiff(b.dueDate):9999));
+  const doneRem = reminders.filter(r=>r.done&&(reminderFilter==="All"||r.category===reminderFilter));
+  const activeTodos = propertyTodos.filter(t=>!t.done&&(propertyFilter==="All"||t.area===propertyFilter)).sort((a,b)=>({Urgent:0,High:1,Medium:2,Low:3}[a.priority]-{Urgent:0,High:1,Medium:2,Low:3}[b.priority]));
+  const doneTodos = propertyTodos.filter(t=>t.done&&(propertyFilter==="All"||t.area===propertyFilter));
+  const currentEquip = selectedEquip ? equipment.find(e=>e.id===selectedEquip) : null;
+
+  const S = {
+    header: {background:"linear-gradient(135deg,#1e3a5f,#2d5282)",color:"white",padding:"16px 24px",boxShadow:"0 2px 12px rgba(30,58,95,0.3)"},
+    headerInner: {maxWidth:960,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8},
+    logo: {display:"flex",gap:12,alignItems:"center"},
+    logoIcon: {fontSize:28,background:"rgba(255,255,255,0.15)",borderRadius:10,width:44,height:44,display:"flex",alignItems:"center",justifyContent:"center"},
+    logoTitle: {fontSize:20,fontWeight:700},
+    logoSub: {fontSize:11,opacity:0.7,marginTop:1},
+    chips: {display:"flex",gap:6,flexWrap:"wrap"},
+    chip: (bg,color,border) => ({padding:"4px 10px",borderRadius:20,fontSize:12,fontWeight:600,background:bg,color,border:`1px solid ${border}`}),
+    nav: {background:"#1e293b",display:"flex",gap:2,padding:"6px 20px"},
+    navBtn: (active) => ({background:active?"rgba(255,255,255,0.1)":"none",border:"none",color:active?"white":"#94a3b8",padding:"8px 18px",borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:active?600:500}),
+    main: {maxWidth:960,margin:"0 auto",padding:"24px 16px"},
+    banner: {background:"white",border:"1.5px solid #fecaca",borderLeft:"4px solid #ef4444",borderRadius:10,padding:16,marginBottom:28},
+    bannerTitle: {fontWeight:700,fontSize:14,marginBottom:10,color:"#dc2626"},
+    bannerRow: {display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderTop:"1px solid #fee2e2",flexWrap:"wrap",gap:8},
+    secHeader: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4},
+    secTitle: {fontSize:18,fontWeight:700,margin:"0 0 3px",color:"#0f172a"},
+    secHint: {color:"#94a3b8",fontSize:12,margin:"0 0 16px"},
+    addBtn: {background:"#1e3a5f",color:"white",border:"none",padding:"8px 16px",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600},
+    divider: {borderTop:"1.5px solid #e2e8f0",margin:"36px 0 28px"},
+    grid: {display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:14,marginBottom:4},
+    card: (urgent,soon) => ({background:"white",borderRadius:12,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:"1.5px solid #e2e8f0",borderTop:`3px solid ${urgent?"#ef4444":soon?"#f59e0b":"#22c55e"}`,overflow:"hidden",display:"flex",flexDirection:"column"}),
+    cardContent: {padding:"14px 14px 8px",flex:1,cursor:"pointer"},
+    cardTopRow: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8},
+    dot: (urgent,soon) => ({width:10,height:10,borderRadius:"50%",background:urgent?"#ef4444":soon?"#f59e0b":"#22c55e"}),
+    cardName: {fontWeight:700,fontSize:15,marginBottom:2,color:"#0f172a"},
+    cardMeta: {fontSize:12,color:"#94a3b8",marginBottom:3},
+    cardSerial: {fontSize:11,color:"#94a3b8",marginBottom:6,fontFamily:"monospace"},
+    cardActions: {padding:"8px 14px 12px",display:"flex",gap:6,alignItems:"center",borderTop:"1px solid #f1f5f9"},
+    iconBtn: {background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:14,color:"#64748b"},
+    filterRow: {display:"flex",gap:6,flexWrap:"wrap",marginBottom:12},
+    pill: (active) => ({background:active?"#1e3a5f":"white",border:`1.5px solid ${active?"#1e3a5f":"#e2e8f0"}`,borderRadius:20,padding:"5px 12px",cursor:"pointer",fontSize:12,fontWeight:500,color:active?"white":"#475569",display:"flex",alignItems:"center",gap:5}),
+    listStack: {display:"flex",flexDirection:"column",gap:8},
+    row: (overdue,soon) => ({background:overdue?"#fff5f5":soon?"#fffbeb":"white",borderRadius:10,padding:"12px 14px",display:"flex",alignItems:"center",gap:12,boxShadow:"0 1px 4px rgba(0,0,0,0.05)",border:`1.5px solid ${overdue?"#fecaca":soon?"#fde68a":"#f1f5f9"}`}),
+    rowContent: {flex:1,minWidth:0},
+    rowTitle: {fontSize:14,fontWeight:600,marginBottom:4,color:"#0f172a"},
+    rowMeta: {display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"},
+    check: (done) => ({width:26,height:26,minWidth:26,borderRadius:6,border:`2px solid ${done?"#22c55e":"#cbd5e1"}`,background:done?"#22c55e":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:done?"white":"#cbd5e1",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}),
+    tag: (bg) => ({color:"white",padding:"2px 7px",borderRadius:8,fontSize:11,fontWeight:600,background:bg}),
+    tagGray: {fontSize:11,color:"#94a3b8",background:"#f1f5f9",padding:"2px 7px",borderRadius:8},
+    tagGreen: {fontSize:11,background:"#dcfce7",color:"#16a34a",padding:"2px 7px",borderRadius:8},
+    logBtn: {background:"#16a34a",color:"white",border:"none",padding:"5px 12px",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600},
+    delBtn: {background:"none",border:"none",color:"#cbd5e1",cursor:"pointer",fontSize:15,padding:"4px 5px"},
+    moreBtn: {background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12,padding:"8px 0",fontWeight:500},
+    todoCard: {background:"white",borderRadius:10,boxShadow:"0 1px 4px rgba(0,0,0,0.05)",border:"1.5px solid #f1f5f9",overflow:"hidden"},
+    todoTop: {padding:"12px 14px",display:"flex",alignItems:"flex-start",gap:12},
+    todoNotes: {background:"#f8fafc",borderTop:"1px solid #f1f5f9",padding:"10px 14px",fontSize:13,color:"#475569"},
+    notesBtn: {background:"none",border:"1px solid #e2e8f0",borderRadius:5,padding:"3px 7px",cursor:"pointer",fontSize:12,color:"#64748b"},
+    backBtn: {background:"white",border:"1.5px solid #e2e8f0",padding:"6px 14px",borderRadius:8,cursor:"pointer",marginBottom:20,fontSize:13,color:"#475569"},
+    detailCard: {background:"white",borderRadius:12,padding:16,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:"1.5px solid #e2e8f0",marginBottom:20},
+    tabs: {display:"flex",marginBottom:16,borderBottom:"2px solid #e2e8f0"},
+    tab: (active) => ({background:"none",border:"none",padding:"10px 20px",cursor:"pointer",fontSize:14,fontWeight:active?700:500,color:active?"#1e3a5f":"#94a3b8",borderBottom:active?"3px solid #1e3a5f":"none",marginBottom:-2}),
+    empty: {textAlign:"center",padding:36,color:"#94a3b8",fontSize:14,background:"white",borderRadius:10,border:"1.5px dashed #e2e8f0"},
+    overlay: {position:"fixed",inset:0,background:"rgba(15,23,42,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16},
+    modal: {background:"white",borderRadius:14,padding:24,width:"100%",maxWidth:440,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",maxHeight:"90vh",overflowY:"auto"},
+    modalTitle: {margin:"0 0 16px",fontSize:18,fontWeight:700,color:"#0f172a"},
+    modalFoot: {display:"flex",gap:8,justifyContent:"flex-end",marginTop:20},
+    fg: {marginBottom:14},
+    lbl: {display:"block",fontSize:12,fontWeight:600,marginBottom:5,color:"#475569",textTransform:"uppercase",letterSpacing:0.4},
+    inp: {width:"100%",padding:"9px 12px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:14,fontFamily:"inherit",boxSizing:"border-box",background:"#f8fafc",color:"#0f172a"},
+    cancelBtn: {background:"none",border:"1.5px solid #e2e8f0",padding:"8px 18px",borderRadius:8,cursor:"pointer",fontSize:14,color:"#64748b"},
+    saveBtn: (bg) => ({background:bg||"#1e3a5f",color:"white",border:"none",padding:"8px 18px",borderRadius:8,cursor:"pointer",fontSize:14,fontWeight:600}),
+    iconRow: {display:"flex",gap:6,flexWrap:"wrap"},
+    iBtn: (active) => ({fontSize:20,background:active?"#eff6ff":"#f1f5f9",border:`2px solid ${active?"#1e3a5f":"transparent"}`,borderRadius:8,padding:"6px 9px",cursor:"pointer"}),
+    catBtn: (active,bg) => ({padding:"5px 11px",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:500,fontFamily:"inherit",background:active?bg:"#f1f5f9",color:active?"white":"#475569",border:`1.5px solid ${active?bg:"transparent"}`}),
+  };
+
+  const ICONS = ["🔧","🌿","❄️","⚡","💧","🚗","🏊","🌡️","🔥","🏠","🛠️","⛽"];
+
+  function EquipModal({data, setData, onSave, onClose, title}) {
+    return (
+      <div style={S.overlay} onClick={onClose}>
+        <div style={S.modal} onClick={e=>e.stopPropagation()}>
+          <h3 style={S.modalTitle}>{title}</h3>
+          <div style={S.fg}><label style={S.lbl}>Name *</label><input style={S.inp} value={data.name} placeholder="e.g. Riding Mower" onChange={e=>setData({...data,name:e.target.value})}/></div>
+          <div style={S.fg}><label style={S.lbl}>Brand</label><input style={S.inp} value={data.brand} placeholder="e.g. Husqvarna" onChange={e=>setData({...data,brand:e.target.value})}/></div>
+          <div style={S.fg}><label style={S.lbl}>Model</label><input style={S.inp} value={data.model} placeholder="e.g. YTH18542" onChange={e=>setData({...data,model:e.target.value})}/></div>
+          <div style={S.fg}><label style={S.lbl}>Serial Number</label><input style={S.inp} value={data.serial||""} placeholder="e.g. ABC-1234567" onChange={e=>setData({...data,serial:e.target.value})}/></div>
+          <div style={S.fg}><label style={S.lbl}>Icon</label><div style={S.iconRow}>{ICONS.map(icon=><button key={icon} style={S.iBtn(data.icon===icon)} onClick={()=>setData({...data,icon})}>{icon}</button>)}</div></div>
+          <div style={S.modalFoot}><button style={S.cancelBtn} onClick={onClose}>Cancel</button><button style={S.saveBtn()} onClick={onSave}>Save</button></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <header style={S.header}>
+        <div style={S.headerInner}>
+          <div style={S.logo}>
+            <div style={S.logoIcon}>🏠</div>
+            <div><div style={S.logoTitle}>HomeKeep</div><div style={S.logoSub}>Home & Property Management</div></div>
+          </div>
+          <div style={S.chips}>
+            {overdueCount>0 && <div style={S.chip("#fee2e2","#dc2626","#fecaca")}>🚨 {overdueCount} Overdue</div>}
+            {soonCount>0 && <div style={S.chip("#fef3c7","#d97706","#fde68a")}>⏰ {soonCount} Due Soon</div>}
+            {pendingRem>0 && <div style={S.chip("#dbeafe","#2563eb","#bfdbfe")}>📋 {pendingRem} Reminders</div>}
+            {urgentProp>0 && <div style={S.chip("#f3e8ff","#7c3aed","#e9d5ff")}>🏗️ {urgentProp} Property</div>}
+          </div>
+        </div>
+      </header>
+
+      <nav style={S.nav}>
+        <button style={S.navBtn(view==="dashboard")} onClick={()=>{setView("dashboard");setSelectedEquip(null);}}>📊 Dashboard</button>
+        <button style={S.navBtn(view==="log")} onClick={()=>setView("log")}>📋 History</button>
+      </nav>
+
+      <main style={S.main}>
+        {view==="dashboard" && !selectedEquip && <div>
+
+          {allTasks.filter(t=>t.daysUntil<=7).length>0 && (
+            <div style={S.banner}>
+              <div style={S.bannerTitle}>⚠️ Equipment Needs Attention</div>
+              {allTasks.filter(t=>t.daysUntil<=7).map(t=>(
+                <div key={t.equipId+"-"+t.id} style={S.bannerRow}>
+                  <span style={{fontSize:14}}>{t.equipIcon} <strong>{t.equipName}</strong> — {t.name}</span>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}><Badge days={t.daysUntil}/><button style={S.logBtn} onClick={()=>markDone(t.equipId,t.id)}>✓ Log It</button></div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={S.secHeader}>
+            <div><h2 style={S.secTitle}>🔧 Your Equipment</h2><p style={S.secHint}>Click any card to view tasks and log maintenance</p></div>
+            <button style={S.addBtn} onClick={()=>setShowAddEquip(true)}>+ Add Equipment</button>
+          </div>
+          <div style={S.grid}>
+            {equipment.map(eq=>{
+              const tasks = eq.tasks.map(t=>({...t,daysUntil:getDaysUntil(t.lastDone,t.intervalDays)}));
+              const urgent = tasks.filter(t=>t.daysUntil<0).length>0;
+              const soon = tasks.filter(t=>t.daysUntil>=0&&t.daysUntil<=7).length>0;
+              const next = [...tasks].sort((a,b)=>a.daysUntil-b.daysUntil)[0];
+              return (
+                <div key={eq.id} style={S.card(urgent,soon)}>
+                  <div style={S.cardContent} onClick={()=>{setSelectedEquip(eq.id);setView("detail");setActiveTab("tasks");}}>
+                    <div style={S.cardTopRow}><span style={{fontSize:28}}>{eq.icon}</span><div style={S.dot(urgent,soon)}/></div>
+                    <div style={S.cardName}>{eq.name}</div>
+                    <div style={S.cardMeta}>{eq.brand} · {eq.model}</div>
+                    {eq.serial && <div style={S.cardSerial}>S/N: {eq.serial}</div>}
+                    {next && <div style={{fontSize:12,marginBottom:4,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><Badge days={next.daysUntil}/>{next.name}</div>}
+                    <div style={{fontSize:11,color:"#cbd5e1"}}>{eq.tasks.length} tasks</div>
+                  </div>
+                  <div style={S.cardActions}>
+                    <button style={S.iconBtn} onClick={()=>setEditEquip({...eq})}>✏️</button>
+                    <button style={S.iconBtn} onClick={()=>setDeleteEquipId(eq.id)}>🗑️</button>
+                    <button style={{...S.iconBtn,marginLeft:"auto",fontSize:12}} onClick={()=>window.open(`https://www.google.com/search?q=${encodeURIComponent(eq.brand+" "+eq.model+" parts")}`)}>🔍 Parts</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={S.divider}/>
+
+          <div style={S.secHeader}>
+            <div><h2 style={S.secTitle}>🏡 Household Maintenance</h2><p style={S.secHint}>Chores, reminders, and recurring tasks</p></div>
+            <button style={S.addBtn} onClick={()=>setShowAddReminder(true)}>+ Add Reminder</button>
+          </div>
+          <div style={S.filterRow}>
+            {["All",...REMINDER_CATS].map(cat=>(
+              <button key={cat} style={S.pill(reminderFilter===cat)} onClick={()=>setReminderFilter(cat)}>
+                {cat!=="All" && <span style={{width:7,height:7,borderRadius:"50%",background:reminderFilter===cat?"white":reminderCatColors[cat],display:"inline-block"}}/>}
+                {cat}
+              </button>
+            ))}
+          </div>
+          <div style={S.listStack}>
+            {activeRem.length===0 && <div style={S.empty}>All caught up! Tap + Add Reminder to create one.</div>}
+            {activeRem.map(r=>{
+              const diff = r.dueDate?dateDiff(r.dueDate):null;
+              return (
+                <div key={r.id} style={S.row(diff!==null&&diff<0, diff!==null&&diff<=3)}>
+                  <button style={S.check(false)} onClick={()=>setReminders(p=>p.map(x=>x.id===r.id?{...x,done:true}:x))}>✓</button>
+                  <div style={S.rowContent}>
+                    <div style={S.rowTitle}>{r.text}</div>
+                    <div style={S.rowMeta}>
+                      <span style={S.tag(reminderCatColors[r.category]||"#64748b")}>{r.category}</span>
+                      {r.dueDate && <Badge days={diff}/>}
+                      {r.repeat!=="none" && <span style={S.tagGray}>🔁 {r.repeat}</span>}
+                    </div>
+                  </div>
+                  <button style={S.delBtn} onClick={()=>setReminders(p=>p.filter(x=>x.id!==r.id))}>✕</button>
+                </div>
+              );
+            })}
+            {reminders.filter(r=>r.done).length>0 && (
+              <div>
+                <button style={S.moreBtn} onClick={()=>setShowDoneReminders(!showDoneReminders)}>{showDoneReminders?"▲ Hide":"▼ Show"} {reminders.filter(r=>r.done).length} completed</button>
+                {showDoneReminders && doneRem.map(r=>(
+                  <div key={r.id} style={{...S.row(false,false),opacity:0.5}}>
+                    <button style={S.check(true)} onClick={()=>setReminders(p=>p.map(x=>x.id===r.id?{...x,done:false}:x))}>✓</button>
+                    <div style={S.rowContent}><div style={{...S.rowTitle,textDecoration:"line-through",color:"#94a3b8"}}>{r.text}</div></div>
+                    <button style={S.delBtn} onClick={()=>setReminders(p=>p.filter(x=>x.id!==r.id))}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={S.divider}/>
+
+          <div style={S.secHeader}>
+            <div><h2 style={S.secTitle}>🏗️ Property Management</h2><p style={S.secHint}>One-off jobs and repairs</p></div>
+            <button style={S.addBtn} onClick={()=>setShowAddProperty(true)}>+ Add Job</button>
+          </div>
+          <div style={S.filterRow}>
+            {["All",...PROPERTY_AREAS].map(area=>(
+              <button key={area} style={S.pill(propertyFilter===area)} onClick={()=>setPropertyFilter(area)}>
+                {area!=="All" && <span style={{width:7,height:7,borderRadius:"50%",background:propertyFilter===area?"white":areaColors[area],display:"inline-block"}}/>}
+                {area}
+              </button>
+            ))}
+          </div>
+          <div style={S.listStack}>
+            {activeTodos.length===0 && <div style={S.empty}>No property jobs yet. Tap + Add Job to log one.</div>}
+            {activeTodos.map(todo=>(
+              <div key={todo.id} style={S.todoCard}>
+                <div style={S.todoTop}>
+                  <button style={S.check(false)} onClick={()=>setPropertyTodos(p=>p.map(t=>t.id===todo.id?{...t,done:true}:t))}>✓</button>
+                  <div style={S.rowContent}>
+                    <div style={S.rowTitle}>{todo.title}</div>
+                    <div style={S.rowMeta}>
+                      <span style={S.tag(areaColors[todo.area]||"#64748b")}>{todo.area}</span>
+                      <span style={{padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600,background:priorityColors[todo.priority]+"20",color:priorityColors[todo.priority],border:`1px solid ${priorityColors[todo.priority]}40`}}>{todo.priority}</span>
+                      <span style={S.tagGray}>{new Date(todo.addedDate).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                    {todo.notes && <button style={S.notesBtn} onClick={()=>setExpandedTodo(expandedTodo===todo.id?null:todo.id)}>{expandedTodo===todo.id?"▲":"▼"}</button>}
+                    <button style={S.delBtn} onClick={()=>setPropertyTodos(p=>p.filter(t=>t.id!==todo.id))}>✕</button>
+                  </div>
+                </div>
+                {expandedTodo===todo.id && todo.notes && <div style={S.todoNotes}>📝 {todo.notes}</div>}
+              </div>
+            ))}
+            {propertyTodos.filter(t=>t.done).length>0 && (
+              <div>
+                <button style={S.moreBtn} onClick={()=>setShowDoneProp(!showDoneProp)}>{showDoneProp?"▲ Hide":"▼ Show"} {propertyTodos.filter(t=>t.done).length} completed</button>
+                {showDoneProp && doneTodos.map(todo=>(
+                  <div key={todo.id} style={{...S.todoCard,opacity:0.5}}>
+                    <div style={S.todoTop}>
+                      <button style={S.check(true)} onClick={()=>setPropertyTodos(p=>p.map(t=>t.id===todo.id?{...t,done:false}:t))}>✓</button>
+                      <div style={S.rowContent}><div style={{...S.rowTitle,textDecoration:"line-through",color:"#94a3b8"}}>{todo.title}</div></div>
+                      <button style={S.delBtn} onClick={()=>setPropertyTodos(p=>p.filter(t=>t.id!==todo.id))}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {showAddEquip && <EquipModal data={newEquip} setData={setNewEquip} onSave={addEquip} onClose={()=>setShowAddEquip(false)} title="Add New Equipment"/>}
+          {editEquip && <EquipModal data={editEquip} setData={setEditEquip} onSave={saveEdit} onClose={()=>setEditEquip(null)} title="Edit Equipment"/>}
+
+          {deleteEquipId && (
+            <div style={S.overlay} onClick={()=>setDeleteEquipId(null)}>
+              <div style={{...S.modal,maxWidth:360}} onClick={e=>e.stopPropagation()}>
+                <h3 style={S.modalTitle}>Delete Equipment?</h3>
+                <p style={{color:"#64748b",fontSize:14,marginBottom:20}}>Delete <strong>{equipment.find(e=>e.id===deleteEquipId)?.name}</strong>? This cannot be undone.</p>
+                <div style={S.modalFoot}><button style={S.cancelBtn} onClick={()=>setDeleteEquipId(null)}>Cancel</button><button style={S.saveBtn("#dc2626")} onClick={()=>delEquip(deleteEquipId)}>Delete</button></div>
+              </div>
+            </div>
+          )}
+
+          {showAddReminder && (
+            <div style={S.overlay} onClick={()=>setShowAddReminder(false)}>
+              <div style={S.modal} onClick={e=>e.stopPropagation()}>
+                <h3 style={S.modalTitle}>Add Household Reminder</h3>
+                <div style={S.fg}><label style={S.lbl}>What needs doing? *</label><input style={S.inp} value={newReminder.text} placeholder="e.g. Clean gutters" onChange={e=>setNewReminder({...newReminder,text:e.target.value})}/></div>
+                <div style={S.fg}><label style={S.lbl}>Category</label><div style={S.iconRow}>{REMINDER_CATS.map(cat=><button key={cat} style={S.catBtn(newReminder.category===cat,reminderCatColors[cat])} onClick={()=>setNewReminder({...newReminder,category:cat})}>{cat}</button>)}</div></div>
+                <div style={S.fg}><label style={S.lbl}>Due Date</label><input type="date" style={S.inp} value={newReminder.dueDate} onChange={e=>setNewReminder({...newReminder,dueDate:e.target.value})}/></div>
+                <div style={S.fg}><label style={S.lbl}>Repeats</label><select style={S.inp} value={newReminder.repeat} onChange={e=>setNewReminder({...newReminder,repeat:e.target.value})}><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></div>
+                <div style={S.modalFoot}><button style={S.cancelBtn} onClick={()=>setShowAddReminder(false)}>Cancel</button><button style={S.saveBtn()} onClick={addReminder}>Add</button></div>
+              </div>
+            </div>
+          )}
+
+          {showAddProperty && (
+            <div style={S.overlay} onClick={()=>setShowAddProperty(false)}>
+              <div style={S.modal} onClick={e=>e.stopPropagation()}>
+                <h3 style={S.modalTitle}>Add Property Job</h3>
+                <div style={S.fg}><label style={S.lbl}>What needs doing? *</label><input style={S.inp} value={newTodo.title} placeholder="e.g. Fix fence panel" onChange={e=>setNewTodo({...newTodo,title:e.target.value})}/></div>
+                <div style={S.fg}><label style={S.lbl}>Area</label><div style={S.iconRow}>{PROPERTY_AREAS.map(area=><button key={area} style={S.catBtn(newTodo.area===area,areaColors[area])} onClick={()=>setNewTodo({...newTodo,area})}>{area}</button>)}</div></div>
+                <div style={S.fg}><label style={S.lbl}>Priority</label><div style={{display:"flex",gap:8}}>{PROPERTY_PRIORITIES.map(p=><button key={p} style={{...S.catBtn(newTodo.priority===p,priorityColors[p]),flex:1}} onClick={()=>setNewTodo({...newTodo,priority:p})}>{p}</button>)}</div></div>
+                <div style={S.fg}><label style={S.lbl}>Notes</label><textarea style={{...S.inp,height:70,resize:"vertical"}} value={newTodo.notes} onChange={e=>setNewTodo({...newTodo,notes:e.target.value})}/></div>
+                <div style={S.modalFoot}><button style={S.cancelBtn} onClick={()=>setShowAddProperty(false)}>Cancel</button><button style={S.saveBtn()} onClick={addTodo}>Add</button></div>
+              </div>
+            </div>
+          )}
+
+        </div>}
+
+        {view==="detail" && currentEquip && <div>
+          <button style={S.backBtn} onClick={()=>{setSelectedEquip(null);setView("dashboard");}}>← Back</button>
+          <div style={S.detailCard}>
+            <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+              <span style={{fontSize:40}}>{currentEquip.icon}</span>
+              <div>
+                <h2 style={{margin:0,fontSize:22,fontWeight:700}}>{currentEquip.name}</h2>
+                <div style={{color:"#64748b",fontSize:13}}>{currentEquip.brand} · Model: <strong>{currentEquip.model}</strong></div>
+                {currentEquip.serial && <div style={{color:"#64748b",fontSize:13}}>Serial: <strong>{currentEquip.serial}</strong></div>}
+              </div>
+              <button style={{...S.addBtn,marginLeft:"auto"}} onClick={()=>window.open(`https://www.google.com/search?q=${encodeURIComponent(currentEquip.brand+" "+currentEquip.model+" parts")}`)}>🔍 Find Parts</button>
+            </div>
+          </div>
+          <div style={S.tabs}>
+            <button style={S.tab(activeTab==="tasks")} onClick={()=>setActiveTab("tasks")}>Maintenance Tasks</button>
+            <button style={S.tab(activeTab==="history")} onClick={()=>setActiveTab("history")}>History</button>
+          </div>
+          {activeTab==="tasks" && <div style={S.listStack}>
+            {currentEquip.tasks.length===0 && <div style={S.empty}>No tasks yet.</div>}
+            {currentEquip.tasks.map(task=>{
+              const days = getDaysUntil(task.lastDone, task.intervalDays);
+              return (
+                <div key={task.id} style={S.row(days<0,days>=0&&days<=7)}>
+                  <div style={{flex:1}}>
+                    <div style={S.rowTitle}>{task.name}</div>
+                    <div style={{fontSize:12,color:"#94a3b8",marginTop:3}}>Every {task.intervalDays} days · Last: {new Date(task.lastDone).toLocaleDateString()} · Due: {getDueDate(task.lastDone,task.intervalDays).toLocaleDateString()}</div>
+                  </div>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}><Badge days={days}/><button style={S.logBtn} onClick={()=>markDone(currentEquip.id,task.id)}>✓ Log Done</button></div>
+                </div>
+              );
+            })}
+          </div>}
+          {activeTab==="history" && <div style={S.listStack}>
+            {history.filter(h=>h.equipName===currentEquip.name).length===0 && <div style={S.empty}>No history yet.</div>}
+            {history.filter(h=>h.equipName===currentEquip.name).map(h=>(
+              <div key={h.id} style={S.row(false,false)}>
+                <div style={{flex:1}}>
+                  <div style={S.rowTitle}>{h.taskName}</div>
+                  <div style={{fontSize:12,color:"#94a3b8"}}>{new Date(h.date).toLocaleDateString()}</div>
+                  {h.note && <div style={{fontSize:13,color:"#64748b",marginTop:4,fontStyle:"italic"}}>📝 {h.note}</div>}
+                </div>
+              </div>
+            ))}
+          </div>}
+        </div>}
+
+        {view==="log" && <div>
+          <h2 style={S.secTitle}>📋 Maintenance History</h2>
+          <p style={{...S.secHint,marginBottom:16}}>All equipment maintenance you have recorded</p>
+          {history.length===0 && <div style={S.empty}>No history yet! Log a completed task to see it here.</div>}
+          {history.map(h=>(
+            <div key={h.id} style={{...S.row(false,false),marginBottom:8}}>
+              <div style={{flex:1}}>
+                <div style={S.rowTitle}><strong>{h.equipName}</strong> · {h.taskName}</div>
+                <div style={{fontSize:12,color:"#94a3b8"}}>{new Date(h.date).toLocaleDateString()}</div>
+                {h.note && <div style={{fontSize:13,color:"#64748b",marginTop:4,fontStyle:"italic"}}>📝 {h.note}</div>}
+              </div>
+            </div>
+          ))}
+        </div>}
+      </main>
+
+      {logModal && (
+        <div style={S.overlay} onClick={()=>setLogModal(null)}>
+          <div style={S.modal} onClick={e=>e.stopPropagation()}>
+            <h3 style={S.modalTitle}>✓ Log Maintenance</h3>
+            <p style={{color:"#64748b",fontSize:14,marginBottom:16}}>Recording: <strong>{logModal.task.name}</strong></p>
+            <div style={S.fg}><label style={S.lbl}>Date Completed</label><input type="date" style={S.inp} value={logDate} onChange={e=>setLogDate(e.target.value)}/></div>
+            <div style={S.fg}><label style={S.lbl}>Notes</label><textarea style={{...S.inp,height:80,resize:"vertical"}} value={logNote} onChange={e=>setLogNote(e.target.value)}/></div>
+            <div style={S.modalFoot}><button style={S.cancelBtn} onClick={()=>setLogModal(null)}>Cancel</button><button style={S.saveBtn()} onClick={submitLog}>Save</button></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>

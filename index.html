@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>HomeKeep</title>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="HomeKeep"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="theme-color" content="#1e3a5f"/>
+  <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxODAgMTgwIj48cmVjdCB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE4MCIgcng9IjM4IiBmaWxsPSIjMWUzYTVmIi8+PHJlY3QgeD0iMzAiIHk9IjkwIiB3aWR0aD0iMTIwIiBoZWlnaHQ9Ijc1IiByeD0iNiIgZmlsbD0iI2ZmZmZmZiIvPjxwb2x5Z29uIHBvaW50cz0iOTAsMjUgMTU1LDkwIDI1LDkwIiBmaWxsPSIjMmQ1MjgyIi8+PHJlY3QgeD0iNjUiIHk9IjExMCIgd2lkdGg9IjMwIiBoZWlnaHQ9IjU1IiByeD0iNCIgZmlsbD0iI2JmZGJmZSIvPjxyZWN0IHg9IjEwNSIgeT0iMTA4IiB3aWR0aD0iMjgiIGhlaWdodD0iMjgiIHJ4PSI0IiBmaWxsPSIjYmZkYmZlIi8+PHJlY3QgeD0iNDMiIHk9Ijc1IiB3aWR0aD0iMTYiIGhlaWdodD0iMTgiIGZpbGw9IiMyZDUyODIiLz48L3N2Zz4="/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #1e293b; }
+    button, input, select, textarea { font-family: inherit; }
+    header { padding-top: max(16px, env(safe-area-inset-top)) !important; }
+    main { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+    #splash {
+      position: fixed; inset: 0; z-index: 9999;
+      background: linear-gradient(160deg, #1e3a5f, #2d5282);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px; transition: opacity 0.4s ease;
+    }
+    #splash.hidden { opacity: 0; pointer-events: none; }
+    #splash-icon {
+      width: 96px; height: 96px; border-radius: 22px;
+      background: rgba(255,255,255,0.12);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 52px;
+    }
+    #splash h1 { color: white; font-size: 28px; font-weight: 700; }
+    #splash p  { color: #93c5fd; font-size: 14px; }
+    #splash-dots { display: flex; gap: 8px; margin-top: 8px; }
+    #splash-dots span {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: rgba(255,255,255,0.4);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    #splash-dots span:nth-child(2) { animation-delay: 0.2s; }
+    #splash-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; transform: scale(0.8); }
+      50%       { opacity: 1;   transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+
+<div id="splash">
+  <div id="splash-icon">&#x1F3E0;</div>
+  <h1>HomeKeep</h1>
+  <p>Home and Property Management</p>
+  <div id="splash-dots"><span></span><span></span><span></span></div>
+</div>
+
+<div id="root"></div>
+
+<script type="text/babel">
+
+const { useState, useEffect } = React;
+
+// HELPERS
+
+function load(key, def) {
+  try { var s = localStorage.getItem(key); return s ? JSON.parse(s) : def; }
+  catch(e) { return def; }
+}
+
+function save(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {}
+}
+
+// SUPABASE CONFIG
+var SUPABASE_URL = "https://apkxqljqzxtmhayunlye.supabase.co";
+var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwa3hxbGpxenh0bWhheXVubHllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzNjUxNTAsImV4cCI6MjA4ODk0MTE1MH0.Lx82Kvu6EgzCIgLMszMHNbgEwj7Dp6SecQpN-4Fr72w";
+
+// Initialize Supabase - will be set up in component
+var db = null;
+function initDb() {
+  if (db) return db;
+  try {
+    if (window.supabase && window.supabase.createClient) {
+      db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      console.log("Supabase connected!");
+    } else {
+      console.log("window.supabase not available:", typeof window.supabase);
+    }
+  } catch(e) {
+    console.log("Supabase init error:", e);
+  }
+  return db;
+}
+
+function daysUntil(lastDone, intervalDays) {
+  if (!lastDone || !intervalDays) return null;
+  var d = new Date(lastDone);
+  d.setDate(d.getDate() + Number(intervalDays));
+  var diff = Math.ceil((d - new Date()) / 86400000);
+  return diff;
+}
+
+function dateDiff(dueDate) {
+  if (!dueDate) return null;
+  var today = new Date(); today.setHours(0,0,0,0);
+  var due = new Date(dueDate); due.setHours(0,0,0,0);
+  return Math.ceil((due - today) / 86400000);
+}
+
+function readFile(file, cb) {
+  try {
+    var r = new FileReader();
+    r.onerror = function() { alert("Could not read photo. Please try again."); };
+    r.onload = function(e) {
+      try {
+        var img = new Image();
+        img.onerror = function() { alert("Could not load photo."); };
+        img.onload = function() {
+          try {
+            var MAX = 600;
+            var w = img.width || 600, h = img.height || 600;
+            if (w > h) { if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; } }
+            else       { if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; } }
+            var canvas = document.createElement("canvas");
+            canvas.width = w; canvas.height = h;
+            var ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, w, h);
+            cb(canvas.toDataURL("image/jpeg", 0.6));
+          } catch(err) { cb(e.target.result); }
+        };
+        img.src = e.target.result;
+      } catch(err) { cb(e.target.result); }
+    };
+    r.readAsDataURL(file);
+  } catch(err) { alert("Photo error: " + err.message); }
+}
+
+// SAMPLE DATA
+
+var EQ0 = [
+  {id:1,name:"Lawn Mower",brand:"Honda",model:"HRX217VKA",serial:"MAGA-1234567",icon:"plant",photo:null,owner:"",
+    tasks:[
+      {id:1,name:"Change oil",intervalDays:90,lastDone:"2025-12-10"},
+      {id:2,name:"Replace air filter",intervalDays:180,lastDone:"2025-09-01"},
+      {id:3,name:"Sharpen blade",intervalDays:60,lastDone:"2025-11-15"},
+      {id:4,name:"Replace spark plug",intervalDays:365,lastDone:"2025-03-01"}
+    ]},
+  {id:2,name:"HVAC System",brand:"Carrier",model:"24ACC636A003",serial:"CARR-9876543",icon:"snowflake",photo:null,owner:"",
+    tasks:[
+      {id:1,name:"Replace air filter",intervalDays:30,lastDone:"2026-02-10"},
+      {id:2,name:"Clean condenser coils",intervalDays:365,lastDone:"2025-05-01"},
+      {id:3,name:"Check refrigerant",intervalDays:365,lastDone:"2025-05-01"}
+    ]},
+  {id:3,name:"Generator",brand:"Generac",model:"GP3500iO",serial:"GENR-5551234",icon:"lightning",photo:null,owner:"",
+    tasks:[
+      {id:1,name:"Change oil",intervalDays:180,lastDone:"2025-10-01"},
+      {id:2,name:"Run test cycle",intervalDays:30,lastDone:"2026-02-01"},
+      {id:3,name:"Replace spark plug",intervalDays:365,lastDone:"2025-06-01"}
+    ]}
+];
+
+var REM0 = [
+  {id:1,text:"Take out the trash",category:"Weekly",done:false,dueDate:"",repeat:"weekly",photo:null,owner:""},
+  {id:2,text:"Clean up garage",category:"Garage",done:false,dueDate:"",repeat:"none",photo:null,owner:""},
+  {id:3,text:"Replace smoke detector batteries",category:"Monthly",done:false,dueDate:"2026-04-01",repeat:"yearly",photo:null,owner:""}
+];
+
+var PROP0 = [
+  {id:1,title:"Fix deck boards",area:"Exterior",priority:"High",notes:"Three boards need replacing",done:false,photo:null,owner:"",addedDate:"2026-01-15"},
+  {id:2,title:"Paint front door",area:"Exterior",priority:"Medium",notes:"",done:false,photo:null,owner:"",addedDate:"2026-02-01"},
+  {id:3,title:"Replace kitchen faucet",area:"Kitchen",priority:"Urgent",notes:"Dripping constantly",done:false,photo:null,owner:"",addedDate:"2026-03-01"}
+];
+
+var ICONS = ["wrench","plant","snowflake","lightning","water","car","pool","thermometer","fire","home","tools","gas"];
+var ICON_EMOJI = {wrench:"&#x1F527;",plant:"&#x1F33F;",snowflake:"&#x2744;&#xFE0F;",lightning:"&#x26A1;",water:"&#x1F4A7;",car:"&#x1F697;",pool:"&#x1F3CA;",thermometer:"&#x1F321;&#xFE0F;",fire:"&#x1F525;",home:"&#x1F3E0;",tools:"&#x1F6E0;&#xFE0F;",gas:"&#x26FD;"};
+var REM_CATS = ["General","Weekly","Monthly","Seasonal","Garage","Yard","Indoor"];
+var PROP_AREAS = ["General","Interior","Exterior","Kitchen","Bathroom","Bedroom","Basement","Garage","Yard","Roof"];
+var PRIORITIES = ["Urgent","High","Medium","Low"];
+var PRIORITY_COLOR = {Urgent:"#ef4444",High:"#f59e0b",Medium:"#3b82f6",Low:"#94a3b8"};
+
+// STYLES
+
+var INP = {width:"100%",padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:7,fontSize:14,background:"white"};
+var ADDBTN = {background:"#1e3a5f",color:"white",border:"none",padding:"8px 16px",borderRadius:7,cursor:"pointer",fontSize:13,fontWeight:600};
+var CANCELBTN = {background:"#f1f5f9",color:"#475569",border:"none",padding:"8px 16px",borderRadius:7,cursor:"pointer",fontSize:13};
+var SAVEBTN = {background:"#16a34a",color:"white",border:"none",padding:"8px 16px",borderRadius:7,cursor:"pointer",fontSize:13,fontWeight:600};
+var ICONBTN = {background:"none",border:"none",cursor:"pointer",padding:"4px 6px",fontSize:15,color:"#94a3b8"};
+var FOOT = {display:"flex",gap:8,justifyContent:"flex-end",marginTop:16,paddingTop:12,borderTop:"1px solid #f1f5f9"};
+
+// COMPONENTS
+
+function Modal(props) {
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div style={{background:"white",borderRadius:14,padding:20,width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{fontWeight:700,fontSize:16}}>{props.title}</div>
+          <button style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94a3b8"}} onClick={props.onClose}>x</button>
+        </div>
+        {props.children}
+      </div>
+    </div>
+  );
+}
+
+function Fld(props) {
+  return (
+    <div style={{marginBottom:12}}>
+      <label style={{fontSize:12,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>{props.label}</label>
+      {props.children}
+    </div>
+  );
+}
+
+function Badge(props) {
+  var days = props.days;
+  if (days === null || days === undefined) return null;
+  var bg, color, text;
+  if (days < 0) { bg="#fee2e2"; color="#dc2626"; text="Overdue "+Math.abs(days)+"d"; }
+  else if (days === 0) { bg="#fee2e2"; color="#dc2626"; text="Due today"; }
+  else if (days <= 7) { bg="#fef3c7"; color="#d97706"; text="Due in "+days+"d"; }
+  else { bg="#dcfce7"; color="#16a34a"; text="OK "+days+"d"; }
+  return <span style={{fontSize:11,background:bg,color:color,padding:"2px 8px",borderRadius:20,fontWeight:600,whiteSpace:"nowrap"}}>{text}</span>;
+}
+
+function PhotoBtn(props) {
+  var photo = props.photo;
+  var onChange = props.onChange;
+  function handle(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    readFile(file, function(data) { onChange(data); });
+  }
+  if (photo) {
+    return (
+      <div style={{position:"relative",display:"inline-block"}}>
+        <img src={photo} alt="photo" style={{width:80,height:60,objectFit:"cover",borderRadius:6,border:"1.5px solid #e2e8f0"}}/>
+        <button style={{position:"absolute",top:-6,right:-6,background:"#ef4444",color:"white",border:"none",borderRadius:"50%",width:18,height:18,cursor:"pointer",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={function(){onChange(null);}}>x</button>
+      </div>
+    );
+  }
+  return (
+    <label style={{display:"inline-flex",alignItems:"center",gap:6,background:"#f1f5f9",border:"1.5px dashed #cbd5e1",padding:"6px 12px",borderRadius:7,cursor:"pointer",fontSize:13,color:"#64748b"}}>
+      + Photo
+      <input type="file" accept="image/*" style={{display:"none"}} onChange={handle}/>
+    </label>
+  );
+}
+
+// MAIN APP
+
+function App() {
+  var eq0 = load("hk_eq", EQ0);
+  var hist0 = load("hk_hist", []);
+  var rem0 = load("hk_rem", REM0);
+  var prop0 = load("hk_prop", PROP0);
+
+  var eqState = useState(eq0);
+  var equipment = eqState[0]; var setEquipment = eqState[1];
+
+  var histState = useState(hist0);
+  var history = histState[0]; var setHistory = histState[1];
+
+  var remState = useState(rem0);
+  var reminders = remState[0]; var setReminders = remState[1];
+
+  var propState = useState(prop0);
+  var propTodos = propState[0]; var setPropTodos = propState[1];
+
+  var viewState = useState("home");
+  var view = viewState[0]; var setView = viewState[1];
+
+  var sectionState = useState(null);
+  var section = sectionState[0]; var setSection = sectionState[1];
+
+  var selEqState = useState(null);
+  var selEquip = selEqState[0]; var setSelEquip = selEqState[1];
+
+  var tabState = useState("tasks");
+  var activeTab = tabState[0]; var setActiveTab = tabState[1];
+
+  var logState = useState(null);
+  var logModal = logState[0]; var setLogModal = logState[1];
+
+  var logNoteState = useState("");
+  var logNote = logNoteState[0]; var setLogNote = logNoteState[1];
+
+  var logDateState = useState(new Date().toISOString().slice(0,10));
+  var logDate = logDateState[0]; var setLogDate = logDateState[1];
+
+  var showAddEqState = useState(false);
+  var showAddEq = showAddEqState[0]; var setShowAddEq = showAddEqState[1];
+
+  var newEqState = useState({name:"",brand:"",model:"",serial:"",icon:"wrench",photo:null,owner:""});
+  var newEq = newEqState[0]; var setNewEq = newEqState[1];
+
+  var editEqState = useState(null);
+  var editEq = editEqState[0]; var setEditEq = editEqState[1];
+
+  var delEqIdState = useState(null);
+  var deleteEqId = delEqIdState[0]; var setDeleteEqId = delEqIdState[1];
+
+  var editTaskState = useState(null);
+  var editTask = editTaskState[0]; var setEditTask = editTaskState[1];
+
+  var showAddTaskState = useState(false);
+  var showAddTask = showAddTaskState[0]; var setShowAddTask = showAddTaskState[1];
+
+  var newTaskState = useState({name:"",intervalDays:90,lastDone:new Date().toISOString().slice(0,10)});
+  var newTask = newTaskState[0]; var setNewTask = newTaskState[1];
+
+  var showAddRemState = useState(false);
+  var showAddRem = showAddRemState[0]; var setShowAddRem = showAddRemState[1];
+
+  var newRemState = useState({text:"",category:"General",dueDate:"",repeat:"none",photo:null,owner:""});
+  var newRem = newRemState[0]; var setNewRem = newRemState[1];
+
+  var editRemState = useState(null);
+  var editRem = editRemState[0]; var setEditRem = editRemState[1];
+
+  var remFilterState = useState("All");
+  var remFilter = remFilterState[0]; var setRemFilter = remFilterState[1];
+
+  var showDoneRemState = useState(false);
+  var showDoneRem = showDoneRemState[0]; var setShowDoneRem = showDoneRemState[1];
+
+  var showAddPropState = useState(false);
+  var showAddProp = showAddPropState[0]; var setShowAddProp = showAddPropState[1];
+
+  var newPropState = useState({title:"",area:"General",priority:"Medium",notes:"",photo:null,owner:""});
+  var newProp = newPropState[0]; var setNewProp = newPropState[1];
+
+  var editPropState = useState(null);
+  var editProp = editPropState[0]; var setEditProp = editPropState[1];
+
+  var propFilterState = useState("All");
+  var propFilter = propFilterState[0]; var setPropFilter = propFilterState[1];
+
+  var showDonePropState = useState(false);
+  var showDoneProp = showDonePropState[0]; var setShowDoneProp = showDonePropState[1];
+
+  var expandedState = useState(null);
+  var expandedTodo = expandedState[0]; var setExpandedTodo = expandedState[1];
+
+  var showDataState = useState(false);
+  var showDataTools = showDataState[0]; var setShowDataTools = showDataState[1];
+
+  var importErrState = useState("");
+  var importError = importErrState[0]; var setImportError = importErrState[1];
+
+  var syncState = useState("");
+  var syncStatus = syncState[0]; var setSyncStatus = syncState[1];
+
+  var showInstallState = useState(false);
+  var showInstallBanner = showInstallState[0]; var setShowInstallBanner = showInstallState[1];
+
+  // Save to localStorage
+  useEffect(function(){ save("hk_eq", equipment); }, [equipment]);
+  useEffect(function(){ save("hk_hist", history); }, [history]);
+  useEffect(function(){ save("hk_rem", reminders); }, [reminders]);
+  useEffect(function(){ save("hk_prop", propTodos); }, [propTodos]);
+
+  // Load from Supabase on first open
+  useEffect(function(){
+    var db = initDb();
+    if (!db) return;
+    setSyncStatus("Syncing...");
+    var timer = setTimeout(function(){ setSyncStatus("Offline"); }, 6000);
+    db.from("homekeep_data").select("*").eq("id","main").single().then(function(result){
+      clearTimeout(timer);
+      var data = result.data;
+      var error = result.error;
+      if (!error && data) {
+        if (data.equipment) setEquipment(JSON.parse(data.equipment));
+        if (data.history) setHistory(JSON.parse(data.history));
+        if (data.reminders) setReminders(JSON.parse(data.reminders));
+        if (data.prop_todos) setPropTodos(JSON.parse(data.prop_todos));
+        setSyncStatus("Synced");
+      } else {
+        setSyncStatus("Local only");
+      }
+    }).catch(function(){ clearTimeout(timer); setSyncStatus("Offline"); });
+  }, []);
+
+  // Save to Supabase when data changes (debounced 1.5s)
+  useEffect(function(){
+    var db = initDb();
+    if (!db) return;
+    var stripPhotos = function(arr){
+      return arr.map(function(item){
+        var copy = Object.assign({}, item);
+        delete copy.photo;
+        return copy;
+      });
+    };
+    var timer = setTimeout(function(){
+      setSyncStatus("Syncing...");
+      db.from("homekeep_data").upsert({
+        id: "main",
+        equipment: JSON.stringify(stripPhotos(equipment)),
+        history: JSON.stringify(history),
+        reminders: JSON.stringify(stripPhotos(reminders)),
+        prop_todos: JSON.stringify(stripPhotos(propTodos)),
+        updated_at: new Date().toISOString()
+      }).then(function(result){
+        if (result.error) { setSyncStatus("Sync failed"); }
+        else { setSyncStatus("Synced"); }
+      }).catch(function(){ setSyncStatus("Sync failed"); });
+    }, 1500);
+    return function(){ clearTimeout(timer); };
+  }, [equipment, history, reminders, propTodos]);
+
+  // Show install banner on iPhone Safari
+  useEffect(function(){
+    var isIos = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+    var isInstalled = window.navigator.standalone === true;
+    var dismissed = localStorage.getItem("hk_install_dismissed");
+    if (isIos && !isInstalled && !dismissed) {
+      setTimeout(function(){ setShowInstallBanner(true); }, 2000);
+    }
+  }, []);
+
+  // Computed
+  var allTasks = equipment.flatMap(function(eq){ return eq.tasks.map(function(t){ return Object.assign({},t,{equipId:eq.id,equipName:eq.name,equipIcon:eq.icon,due:daysUntil(t.lastDone,t.intervalDays)}); }); });
+  var overdueCount = allTasks.filter(function(t){ return t.due < 0; }).length;
+  var soonCount = allTasks.filter(function(t){ return t.due >= 0 && t.due <= 7; }).length;
+  var urgentProp = propTodos.filter(function(t){ return !t.done && (t.priority === "Urgent" || t.priority === "High"); }).length;
+  var curEquip = selEquip ? equipment.find(function(e){ return e.id === selEquip; }) : null;
+
+  function goHome() { setView("home"); setSection(null); setSelEquip(null); }
+  function goSection(s) { setView("dashboard"); setSection(s); }
+  function goBack() { setView("home"); setSection(null); }
+
+  function openLog(equipId, taskId) {
+    var eq = equipment.find(function(e){ return e.id === equipId; });
+    setLogModal({equipId:equipId, task:eq.tasks.find(function(t){ return t.id === taskId; })});
+    setLogNote(""); setLogDate(new Date().toISOString().slice(0,10));
+  }
+
+  function submitLog() {
+    if (!logModal) return;
+    var eid = logModal.equipId; var tid = logModal.task.id;
+    setEquipment(function(prev){ return prev.map(function(eq){ return eq.id !== eid ? eq : Object.assign({},eq,{tasks:eq.tasks.map(function(t){ return t.id !== tid ? t : Object.assign({},t,{lastDone:logDate}); })}); }); });
+    setHistory(function(prev){ return [{id:Date.now(),equipId:eid,taskId:tid,date:logDate,note:logNote}].concat(prev); });
+    setLogModal(null);
+  }
+
+  function addEquip() {
+    if (!newEq.name.trim()) return;
+    setEquipment(function(p){ return p.concat([Object.assign({id:Date.now()},newEq,{tasks:[]})]); });
+    setNewEq({name:"",brand:"",model:"",serial:"",icon:"wrench",photo:null,owner:""});
+    setShowAddEq(false);
+  }
+
+  function saveEditEq() {
+    if (!editEq || !editEq.name.trim()) return;
+    setEquipment(function(p){ return p.map(function(e){ return e.id === editEq.id ? Object.assign({},e,editEq) : e; }); });
+    setEditEq(null);
+  }
+
+  function delEquip(id) {
+    setEquipment(function(p){ return p.filter(function(e){ return e.id !== id; }); });
+    setDeleteEqId(null);
+    setSelEquip(null);
+    goSection("equipment");
+  }
+
+  function addTask() {
+    if (!newTask.name.trim()) return;
+    var task = Object.assign({id:Date.now()},newTask,{intervalDays:parseInt(newTask.intervalDays)||90});
+    setEquipment(function(p){ return p.map(function(e){ return e.id === selEquip ? Object.assign({},e,{tasks:e.tasks.concat([task])}) : e; }); });
+    setNewTask({name:"",intervalDays:90,lastDone:new Date().toISOString().slice(0,10)});
+    setShowAddTask(false);
+  }
+
+  function saveEditTask() {
+    if (!editTask || !editTask.name.trim()) return;
+    setEquipment(function(p){ return p.map(function(e){ return e.id !== selEquip ? e : Object.assign({},e,{tasks:e.tasks.map(function(t){ return t.id === editTask.id ? Object.assign({},t,editTask) : t; })}); }); });
+    setEditTask(null);
+  }
+
+  function delTask(taskId) {
+    setEquipment(function(p){ return p.map(function(e){ return e.id !== selEquip ? e : Object.assign({},e,{tasks:e.tasks.filter(function(t){ return t.id !== taskId; })}); }); });
+  }
+
+  function addRem() {
+    if (!newRem.text.trim()) return;
+    setReminders(function(p){ return p.concat([Object.assign({id:Date.now()},newRem,{done:false})]); });
+    setNewRem({text:"",category:"General",dueDate:"",repeat:"none",photo:null,owner:""});
+    setShowAddRem(false);
+  }
+
+  function saveEditRem() {
+    if (!editRem || !editRem.text.trim()) return;
+    setReminders(function(p){ return p.map(function(r){ return r.id === editRem.id ? Object.assign({},r,editRem) : r; }); });
+    setEditRem(null);
+  }
+
+  function addProp() {
+    if (!newProp.title.trim()) return;
+    setPropTodos(function(p){ return p.concat([Object.assign({id:Date.now()},newProp,{done:false,addedDate:new Date().toISOString().slice(0,10)})]); });
+    setNewProp({title:"",area:"General",priority:"Medium",notes:"",photo:null,owner:""});
+    setShowAddProp(false);
+  }
+
+  function saveEditProp() {
+    if (!editProp || !editProp.title.trim()) return;
+    setPropTodos(function(p){ return p.map(function(t){ return t.id === editProp.id ? Object.assign({},t,editProp) : t; }); });
+    setEditProp(null);
+  }
+
+  function exportData() {
+    var data = {equipment:equipment,history:history,reminders:reminders,propTodos:propTodos,exportedAt:new Date().toISOString()};
+    var blob = new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = "homekeep-backup.json"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importData(e) {
+    var file = e.target.files[0]; if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      try {
+        var d = JSON.parse(ev.target.result);
+        if (d.equipment) setEquipment(d.equipment);
+        if (d.history) setHistory(d.history);
+        if (d.reminders) setReminders(d.reminders);
+        if (d.propTodos) setPropTodos(d.propTodos);
+        setImportError(""); setShowDataTools(false);
+        alert("Data imported successfully!");
+      } catch(err) { setImportError("Could not read file. Make sure it is a HomeKeep backup."); }
+    };
+    reader.readAsText(file);
+  }
+
+  var activeRem = reminders.filter(function(r){ return !r.done && (remFilter === "All" || r.category === remFilter); });
+  var doneRem = reminders.filter(function(r){ return r.done && (remFilter === "All" || r.category === remFilter); });
+  var activeProp = propTodos.filter(function(t){ return !t.done && (propFilter === "All" || t.area === propFilter); }).sort(function(a,b){ return ({"Urgent":0,"High":1,"Medium":2,"Low":3}[a.priority]||2) - ({"Urgent":0,"High":1,"Medium":2,"Low":3}[b.priority]||2); });
+  var doneProp = propTodos.filter(function(t){ return t.done && (propFilter === "All" || t.area === propFilter); });
+
+  return (
+    <div>
+      <header style={{background:"linear-gradient(135deg,#1e3a5f,#2d5282)",color:"white",padding:"16px 24px"}}>
+        <div style={{maxWidth:960,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+          <div style={{display:"flex",gap:12,alignItems:"center"}}>
+            <div style={{fontSize:26,background:"rgba(255,255,255,0.15)",borderRadius:10,width:44,height:44,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} onClick={goHome}>&#x1F3E0;</div>
+            <div>
+              <div style={{fontSize:20,fontWeight:700,cursor:"pointer"}} onClick={goHome}>HomeKeep</div>
+              <div style={{fontSize:11,opacity:0.7}}>Home and Property Management</div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+            {overdueCount > 0 && <span style={{padding:"4px 10px",borderRadius:20,fontSize:12,fontWeight:600,background:"#fee2e2",color:"#dc2626"}}>{overdueCount + " overdue"}</span>}
+            {soonCount > 0 && <span style={{padding:"4px 10px",borderRadius:20,fontSize:12,fontWeight:600,background:"#fef3c7",color:"#d97706"}}>{soonCount + " due soon"}</span>}
+            {syncStatus !== "" && <span style={{fontSize:11,color:syncStatus==="Synced"?"#6ee7b7":syncStatus==="Syncing..."?"#fbbf24":"#94a3b8",opacity:0.9}}>{syncStatus}</span>}
+          </div>
+        </div>
+      </header>
+
+      <nav style={{background:"#1e293b",display:"flex",gap:2,padding:"6px 20px",alignItems:"center"}}>
+        <button style={{background:view==="home"?"rgba(255,255,255,0.1)":"none",border:"none",color:view==="home"?"white":"#94a3b8",padding:"8px 18px",borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:view==="home"?600:500}} onClick={goHome}>Home</button>
+        <button style={{background:view==="log"?"rgba(255,255,255,0.1)":"none",border:"none",color:view==="log"?"white":"#94a3b8",padding:"8px 18px",borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:view==="log"?600:500}} onClick={function(){ setView("log"); }}>History</button>
+        <button style={{background:"none",border:"none",color:"#94a3b8",padding:"8px 18px",borderRadius:6,cursor:"pointer",fontSize:13,marginLeft:"auto"}} onClick={function(){ setShowDataTools(true); }}>Data</button>
+      </nav>
+
+      <main style={{maxWidth:960,margin:"0 auto",padding:"24px 16px"}}>
+
+        {/* -- HOME SCREEN -- */}
+        {view === "home" && (
+          <div>
+            {allTasks.filter(function(t){ return t.due !== null && t.due <= 7; }).length > 0 && (
+              <div style={{background:"white",border:"1.5px solid #fecaca",borderLeft:"4px solid #ef4444",borderRadius:10,padding:16,marginBottom:24}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:10,color:"#dc2626"}}>Equipment Needs Attention</div>
+                {allTasks.filter(function(t){ return t.due !== null && t.due <= 7; }).map(function(t){
+                  return (
+                    <div key={t.equipId + "-" + t.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderTop:"1px solid #fee2e2",flexWrap:"wrap",gap:8}}>
+                      <span style={{fontSize:14}}><strong>{t.equipName}</strong> - {t.name}</span>
+                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                        <Badge days={t.due}/>
+                        <button style={{background:"#16a34a",color:"white",border:"none",padding:"5px 12px",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600}} onClick={function(){ openLog(t.equipId, t.id); }}>Log It</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+              <div onClick={function(){ goSection("equipment"); }} style={{background:"white",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.07)",border:"1.5px solid #e2e8f0",cursor:"pointer",display:"flex",alignItems:"center",gap:20,borderLeft:"5px solid #3b82f6"}}>
+                <div style={{fontSize:44,width:60,height:60,display:"flex",alignItems:"center",justifyContent:"center",background:"#eff6ff",borderRadius:14,flexShrink:0}}>&#x1F527;</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:4}}>Equipment</div>
+                  <div style={{fontSize:13,color:"#64748b",marginBottom:8}}>Track maintenance schedules and service history</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <span style={{fontSize:12,background:"#f1f5f9",color:"#475569",padding:"3px 10px",borderRadius:20,fontWeight:500}}>{equipment.length + " items"}</span>
+                    {overdueCount > 0 && <span style={{fontSize:12,background:"#fee2e2",color:"#dc2626",padding:"3px 10px",borderRadius:20,fontWeight:600}}>{overdueCount + " overdue"}</span>}
+                    {soonCount > 0 && <span style={{fontSize:12,background:"#fef3c7",color:"#d97706",padding:"3px 10px",borderRadius:20,fontWeight:600}}>{soonCount + " due soon"}</span>}
+                    {overdueCount === 0 && soonCount === 0 && <span style={{fontSize:12,background:"#dcfce7",color:"#16a34a",padding:"3px 10px",borderRadius:20,fontWeight:600}}>All good</span>}
+                  </div>
+                </div>
+                <div style={{fontSize:20,color:"#cbd5e1",fontWeight:700}}>{">"}</div>
+              </div>
+
+              <div onClick={function(){ goSection("reminders"); }} style={{background:"white",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.07)",border:"1.5px solid #e2e8f0",cursor:"pointer",display:"flex",alignItems:"center",gap:20,borderLeft:"5px solid #8b5cf6"}}>
+                <div style={{fontSize:44,width:60,height:60,display:"flex",alignItems:"center",justifyContent:"center",background:"#f5f3ff",borderRadius:14,flexShrink:0}}>&#x1F3E1;</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:4}}>Household Maintenance</div>
+                  <div style={{fontSize:13,color:"#64748b",marginBottom:8}}>Chores, reminders and recurring tasks</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <span style={{fontSize:12,background:"#f1f5f9",color:"#475569",padding:"3px 10px",borderRadius:20,fontWeight:500}}>{reminders.filter(function(r){ return !r.done; }).length + " pending"}</span>
+                    {reminders.filter(function(r){ return r.done; }).length > 0 && <span style={{fontSize:12,background:"#dcfce7",color:"#16a34a",padding:"3px 10px",borderRadius:20,fontWeight:500}}>{reminders.filter(function(r){ return r.done; }).length + " done"}</span>}
+                  </div>
+                </div>
+                <div style={{fontSize:20,color:"#cbd5e1",fontWeight:700}}>{">"}</div>
+              </div>
+
+              <div onClick={function(){ goSection("property"); }} style={{background:"white",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.07)",border:"1.5px solid #e2e8f0",cursor:"pointer",display:"flex",alignItems:"center",gap:20,borderLeft:"5px solid #f59e0b"}}>
+                <div style={{fontSize:44,width:60,height:60,display:"flex",alignItems:"center",justifyContent:"center",background:"#fffbeb",borderRadius:14,flexShrink:0}}>&#x1F3D7;</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:4}}>Property Management</div>
+                  <div style={{fontSize:13,color:"#64748b",marginBottom:8}}>One-off jobs, repairs and projects</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <span style={{fontSize:12,background:"#f1f5f9",color:"#475569",padding:"3px 10px",borderRadius:20,fontWeight:500}}>{propTodos.filter(function(t){ return !t.done; }).length + " jobs"}</span>
+                    {urgentProp > 0 && <span style={{fontSize:12,background:"#fef3c7",color:"#d97706",padding:"3px 10px",borderRadius:20,fontWeight:600}}>{urgentProp + " urgent"}</span>}
+                  </div>
+                </div>
+                <div style={{fontSize:20,color:"#cbd5e1",fontWeight:700}}>{">"}</div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* -- EQUIPMENT LIST -- */}
+        {view === "dashboard" && section === "equipment" && !selEquip && (
+          <div>
+            <button style={{background:"white",border:"1.5px solid #e2e8f0",padding:"6px 14px",borderRadius:8,cursor:"pointer",marginBottom:20,fontSize:13,color:"#475569"}} onClick={goBack}>Back</button>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+              <div><h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:2}}>Your Equipment</h2><p style={{color:"#94a3b8",fontSize:12}}>Tap any card to view tasks</p></div>
+              <button style={ADDBTN} onClick={function(){ setShowAddEq(true); }}>+ Add</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:14,marginBottom:32}}>
+              {equipment.map(function(eq){
+                var tasks = eq.tasks.map(function(t){ return Object.assign({},t,{due:daysUntil(t.lastDone,t.intervalDays)}); });
+                var urgent = tasks.some(function(t){ return t.due < 0; });
+                var soon = tasks.some(function(t){ return t.due >= 0 && t.due <= 7; });
+                var next = tasks.slice().sort(function(a,b){ return a.due - b.due; })[0];
+                var topColor = urgent ? "#ef4444" : soon ? "#f59e0b" : "#22c55e";
+                return (
+                  <div key={eq.id} style={{background:"white",borderRadius:12,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:"1.5px solid #e2e8f0",display:"flex",flexDirection:"column",overflow:"hidden",borderTop:"4px solid "+topColor}}>
+                    {eq.photo && <img src={eq.photo} alt={eq.name} style={{width:"100%",height:100,objectFit:"cover"}}/>}
+                    <div style={{padding:"14px 14px 8px",flex:1,cursor:"pointer"}} onClick={function(){ setSelEquip(eq.id); setView("detail"); setActiveTab("tasks"); }}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                        <span style={{fontSize:26}} dangerouslySetInnerHTML={{__html:ICON_EMOJI[eq.icon]||"&#x1F527;"}}></span>
+                        <div style={{width:10,height:10,borderRadius:"50%",background:topColor}}/>
+                      </div>
+                      <div style={{fontWeight:700,fontSize:15,marginBottom:2}}>{eq.name}</div>
+                      <div style={{fontSize:12,color:"#94a3b8",marginBottom:8}}>{eq.brand} {eq.model}</div>
+                      {next && <Badge days={next.due}/>}
+                      {eq.owner && <div style={{fontSize:11,color:"#3b82f6",marginTop:6}}>{eq.owner}</div>}
+                    </div>
+                    <div style={{padding:"8px 14px",borderTop:"1px solid #f1f5f9",display:"flex",gap:6,justifyContent:"flex-end"}}>
+                      <button style={ICONBTN} onClick={function(){ setEditEq(Object.assign({},eq)); }}>edit</button>
+                      <button style={Object.assign({},ICONBTN,{color:"#ef4444"})} onClick={function(){ setDeleteEqId(eq.id); }}>del</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* -- EQUIPMENT DETAIL -- */}
+        {view === "detail" && curEquip && (
+          <div>
+            <button style={{background:"white",border:"1.5px solid #e2e8f0",padding:"6px 14px",borderRadius:8,cursor:"pointer",marginBottom:20,fontSize:13,color:"#475569"}} onClick={function(){ setSelEquip(null); setView("dashboard"); setSection("equipment"); }}>Back</button>
+            <div style={{background:"white",borderRadius:12,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:20}}>
+              {curEquip.photo && <img src={curEquip.photo} alt={curEquip.name} style={{width:"100%",height:160,objectFit:"cover"}}/>}
+              <div style={{padding:20}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div>
+                    <div style={{fontSize:24,fontWeight:700,marginBottom:4}}>{curEquip.name}</div>
+                    <div style={{fontSize:13,color:"#64748b"}}>{curEquip.brand} {curEquip.model}</div>
+                    {curEquip.serial && <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>S/N: {curEquip.serial}</div>}
+                    {curEquip.owner && <div style={{fontSize:12,color:"#3b82f6",marginTop:4}}>{curEquip.owner}</div>}
+                  </div>
+                  <div style={{display:"flex",gap:6}}>
+                    <button style={ICONBTN} onClick={function(){ setEditEq(Object.assign({},curEquip)); }}>edit</button>
+                    <button style={Object.assign({},ICONBTN,{color:"#ef4444"})} onClick={function(){ setDeleteEqId(curEquip.id); }}>del</button>
+                  </div>
+                </div>
+                <a href={"https://www.google.com/search?q="+encodeURIComponent(curEquip.brand+" "+curEquip.model+" parts")} target="_blank" style={{display:"inline-block",marginTop:12,fontSize:12,color:"#3b82f6",textDecoration:"none",background:"#eff6ff",padding:"4px 10px",borderRadius:6}}>Find Parts Online</a>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:0,marginBottom:16,background:"white",borderRadius:8,overflow:"hidden",border:"1.5px solid #e2e8f0"}}>
+              {["tasks","history"].map(function(tab){
+                return <button key={tab} style={{flex:1,padding:"10px",border:"none",background:activeTab===tab?"#1e3a5f":"white",color:activeTab===tab?"white":"#64748b",cursor:"pointer",fontWeight:activeTab===tab?600:400,fontSize:13,textTransform:"capitalize"}} onClick={function(){ setActiveTab(tab); }}>{tab}</button>;
+              })}
+            </div>
+            {activeTab === "tasks" && (
+              <div>
+                <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+                  <button style={ADDBTN} onClick={function(){ setShowAddTask(true); }}>+ Add Task</button>
+                </div>
+                {curEquip.tasks.map(function(task){
+                  var due = daysUntil(task.lastDone, task.intervalDays);
+                  return (
+                    <div key={task.id} style={{background:"white",borderRadius:10,padding:14,marginBottom:10,boxShadow:"0 1px 4px rgba(0,0,0,0.05)",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                      <div>
+                        <div style={{fontWeight:600,fontSize:14,marginBottom:4}}>{task.name}</div>
+                        <div style={{fontSize:12,color:"#94a3b8"}}>Every {task.intervalDays} days - Last: {task.lastDone}</div>
+                      </div>
+                      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                        <Badge days={due}/>
+                        <button style={{background:"#16a34a",color:"white",border:"none",padding:"5px 10px",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600}} onClick={function(){ openLog(curEquip.id, task.id); }}>Log</button>
+                        <button style={ICONBTN} onClick={function(){ setEditTask(Object.assign({},task)); }}>edit</button>
+                        <button style={Object.assign({},ICONBTN,{color:"#ef4444"})} onClick={function(){ delTask(task.id); }}>del</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {activeTab === "history" && (
+              <div>
+                {history.filter(function(h){ return h.equipId === selEquip; }).length === 0 && <div style={{color:"#94a3b8",textAlign:"center",padding:32}}>No history yet</div>}
+                {history.filter(function(h){ return h.equipId === selEquip; }).map(function(h){
+                  var task = curEquip.tasks.find(function(t){ return t.id === h.taskId; });
+                  return (
+                    <div key={h.id} style={{background:"white",borderRadius:10,padding:14,marginBottom:10,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+                      <div style={{fontWeight:600,fontSize:14}}>{task ? task.name : "Task"}</div>
+                      <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{h.date}</div>
+                      {h.note && <div style={{fontSize:13,color:"#475569",marginTop:4}}>{h.note}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* -- REMINDERS -- */}
+        {view === "dashboard" && section === "reminders" && (
+          <div>
+            <button style={{background:"white",border:"1.5px solid #e2e8f0",padding:"6px 14px",borderRadius:8,cursor:"pointer",marginBottom:20,fontSize:13,color:"#475569"}} onClick={goBack}>Back</button>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+              <div><h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:2}}>Household Maintenance</h2></div>
+              <button style={ADDBTN} onClick={function(){ setShowAddRem(true); }}>+ Add</button>
+            </div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
+              {["All"].concat(REM_CATS).map(function(cat){
+                return <button key={cat} style={{padding:"4px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:500,background:remFilter===cat?"#1e3a5f":"#f1f5f9",color:remFilter===cat?"white":"#64748b"}} onClick={function(){ setRemFilter(cat); }}>{cat}</button>;
+              })}
+            </div>
+            {activeRem.map(function(r){
+              var dd = dateDiff(r.dueDate);
+              return (
+                <div key={r.id} style={{background:"white",borderRadius:10,padding:14,marginBottom:10,boxShadow:"0 1px 4px rgba(0,0,0,0.05)",display:"flex",alignItems:"flex-start",gap:12}}>
+                  <input type="checkbox" checked={r.done} style={{marginTop:3,width:16,height:16,cursor:"pointer"}} onChange={function(){ setReminders(function(p){ return p.map(function(x){ return x.id === r.id ? Object.assign({},x,{done:!x.done}) : x; }); }); }}/>
+                  {r.photo && <img src={r.photo} alt="" style={{width:50,height:40,objectFit:"cover",borderRadius:6,flexShrink:0}}/>}
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:14,marginBottom:4}}>{r.text}</div>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                      <span style={{fontSize:11,background:"#f1f5f9",color:"#64748b",padding:"2px 8px",borderRadius:20}}>{r.category}</span>
+                      {r.dueDate && <Badge days={dd}/>}
+                      {r.owner && <span style={{fontSize:11,color:"#3b82f6"}}>{r.owner}</span>}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:4,flexShrink:0}}>
+                    <button style={ICONBTN} onClick={function(){ setEditRem(Object.assign({},r)); }}>edit</button>
+                    <button style={Object.assign({},ICONBTN,{color:"#ef4444"})} onClick={function(){ setReminders(function(p){ return p.filter(function(x){ return x.id !== r.id; }); }); }}>del</button>
+                  </div>
+                </div>
+              );
+            })}
+            {doneRem.length > 0 && (
+              <div>
+                <button style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:13,padding:"8px 0",marginBottom:8}} onClick={function(){ setShowDoneRem(!showDoneRem); }}>{showDoneRem ? "Hide" : "Show"} {doneRem.length} completed</button>
+                {showDoneRem && doneRem.map(function(r){
+                  return (
+                    <div key={r.id} style={{background:"#f8fafc",borderRadius:10,padding:14,marginBottom:8,opacity:0.6,display:"flex",alignItems:"center",gap:12}}>
+                      <input type="checkbox" checked={true} style={{width:16,height:16,cursor:"pointer"}} onChange={function(){ setReminders(function(p){ return p.map(function(x){ return x.id === r.id ? Object.assign({},x,{done:false}) : x; }); }); }}/>
+                      <span style={{flex:1,textDecoration:"line-through",fontSize:14,color:"#94a3b8"}}>{r.text}</span>
+                      <button style={Object.assign({},ICONBTN,{color:"#ef4444"})} onClick={function(){ setReminders(function(p){ return p.filter(function(x){ return x.id !== r.id; }); }); }}>del</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* -- PROPERTY -- */}
+        {view === "dashboard" && section === "property" && (
+          <div>
+            <button style={{background:"white",border:"1.5px solid #e2e8f0",padding:"6px 14px",borderRadius:8,cursor:"pointer",marginBottom:20,fontSize:13,color:"#475569"}} onClick={goBack}>Back</button>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+              <div><h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:2}}>Property Management</h2></div>
+              <button style={ADDBTN} onClick={function(){ setShowAddProp(true); }}>+ Add</button>
+            </div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
+              {["All"].concat(PROP_AREAS).map(function(area){
+                return <button key={area} style={{padding:"4px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:500,background:propFilter===area?"#1e3a5f":"#f1f5f9",color:propFilter===area?"white":"#64748b"}} onClick={function(){ setPropFilter(area); }}>{area}</button>;
+              })}
+            </div>
+            {activeProp.map(function(todo){
+              return (
+                <div key={todo.id} style={{background:"white",borderRadius:10,padding:14,marginBottom:10,boxShadow:"0 1px 4px rgba(0,0,0,0.05)",borderLeft:"4px solid "+(PRIORITY_COLOR[todo.priority]||"#94a3b8")}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",cursor:"pointer"}} onClick={function(){ setExpandedTodo(expandedTodo === todo.id ? null : todo.id); }}>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:14,marginBottom:4}}>{todo.title}</div>
+                      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                        <span style={{fontSize:11,background:"#f1f5f9",color:"#64748b",padding:"2px 8px",borderRadius:20}}>{todo.area}</span>
+                        <span style={{fontSize:11,background:PRIORITY_COLOR[todo.priority]+"22",color:PRIORITY_COLOR[todo.priority],padding:"2px 8px",borderRadius:20,fontWeight:600}}>{todo.priority}</span>
+                        {todo.owner && <span style={{fontSize:11,color:"#3b82f6"}}>{todo.owner}</span>}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:4,flexShrink:0,marginLeft:8}}>
+                      <button style={ICONBTN} onClick={function(e){ e.stopPropagation(); setEditProp(Object.assign({},todo)); }}>edit</button>
+                      <button style={Object.assign({},ICONBTN,{color:"#16a34a"})} onClick={function(e){ e.stopPropagation(); setPropTodos(function(p){ return p.map(function(t){ return t.id === todo.id ? Object.assign({},t,{done:true}) : t; }); }); }}>done</button>
+                      <button style={Object.assign({},ICONBTN,{color:"#ef4444"})} onClick={function(e){ e.stopPropagation(); setPropTodos(function(p){ return p.filter(function(t){ return t.id !== todo.id; }); }); }}>del</button>
+                    </div>
+                  </div>
+                  {expandedTodo === todo.id && (
+                    <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid #f1f5f9"}}>
+                      {todo.photo && <img src={todo.photo} alt="" style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:8,marginBottom:8}}/>}
+                      {todo.notes && <div style={{fontSize:13,color:"#475569",marginBottom:4}}>{todo.notes}</div>}
+                      <div style={{fontSize:11,color:"#94a3b8"}}>Added: {todo.addedDate}</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {doneProp.length > 0 && (
+              <div>
+                <button style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:13,padding:"8px 0",marginBottom:8}} onClick={function(){ setShowDoneProp(!showDoneProp); }}>{showDoneProp ? "Hide" : "Show"} {doneProp.length} completed</button>
+                {showDoneProp && doneProp.map(function(todo){
+                  return (
+                    <div key={todo.id} style={{background:"#f8fafc",borderRadius:10,padding:14,marginBottom:8,opacity:0.6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{textDecoration:"line-through",fontSize:14,color:"#94a3b8"}}>{todo.title}</span>
+                      <button style={Object.assign({},ICONBTN,{color:"#ef4444"})} onClick={function(){ setPropTodos(function(p){ return p.filter(function(t){ return t.id !== todo.id; }); }); }}>del</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* -- HISTORY LOG -- */}
+        {view === "log" && (
+          <div>
+            <h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:16}}>Maintenance History</h2>
+            {history.length === 0 && <div style={{color:"#94a3b8",textAlign:"center",padding:48}}>No history yet</div>}
+            {history.map(function(h){
+              var eq = equipment.find(function(e){ return e.id === h.equipId; });
+              var task = eq ? eq.tasks.find(function(t){ return t.id === h.taskId; }) : null;
+              return (
+                <div key={h.id} style={{background:"white",borderRadius:10,padding:14,marginBottom:10,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+                  <div style={{fontWeight:600,fontSize:14}}>{eq ? eq.name : "Equipment"} - {task ? task.name : "Task"}</div>
+                  <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{h.date}</div>
+                  {h.note && <div style={{fontSize:13,color:"#475569",marginTop:4}}>{h.note}</div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* -- MODALS -- */}
+
+        {logModal && (
+          <Modal title={"Log: " + (logModal.task ? logModal.task.name : "")} onClose={function(){ setLogModal(null); }}>
+            <Fld label="Date"><input type="date" style={INP} value={logDate} onChange={function(e){ setLogDate(e.target.value); }}/></Fld>
+            <Fld label="Note (optional)"><textarea style={Object.assign({},INP,{height:80,resize:"vertical"})} value={logNote} onChange={function(e){ setLogNote(e.target.value); }} placeholder="Any notes about this maintenance..."/></Fld>
+            <div style={FOOT}>
+              <button style={CANCELBTN} onClick={function(){ setLogModal(null); }}>Cancel</button>
+              <button style={SAVEBTN} onClick={submitLog}>Save Log</button>
+            </div>
+          </Modal>
+        )}
+
+        {showAddEq && (
+          <Modal title="Add Equipment" onClose={function(){ setShowAddEq(false); }}>
+            <Fld label="Name *"><input style={INP} value={newEq.name} onChange={function(e){ setNewEq(Object.assign({},newEq,{name:e.target.value})); }} placeholder="e.g. HVAC System"/></Fld>
+            <Fld label="Brand"><input style={INP} value={newEq.brand} onChange={function(e){ setNewEq(Object.assign({},newEq,{brand:e.target.value})); }}/></Fld>
+            <Fld label="Model"><input style={INP} value={newEq.model} onChange={function(e){ setNewEq(Object.assign({},newEq,{model:e.target.value})); }}/></Fld>
+            <Fld label="Serial Number"><input style={INP} value={newEq.serial} onChange={function(e){ setNewEq(Object.assign({},newEq,{serial:e.target.value})); }}/></Fld>
+            <Fld label="Owner"><input style={INP} value={newEq.owner} onChange={function(e){ setNewEq(Object.assign({},newEq,{owner:e.target.value})); }}/></Fld>
+            <Fld label="Photo"><PhotoBtn photo={newEq.photo} onChange={function(p){ setNewEq(Object.assign({},newEq,{photo:p})); }}/></Fld>
+            <div style={FOOT}>
+              <button style={CANCELBTN} onClick={function(){ setShowAddEq(false); }}>Cancel</button>
+              <button style={SAVEBTN} onClick={addEquip}>Add Equipment</button>
+            </div>
+          </Modal>
+        )}
+
+        {editEq && (
+          <Modal title="Edit Equipment" onClose={function(){ setEditEq(null); }}>
+            <Fld label="Name *"><input style={INP} value={editEq.name} onChange={function(e){ setEditEq(Object.assign({},editEq,{name:e.target.value})); }}/></Fld>
+            <Fld label="Brand"><input style={INP} value={editEq.brand} onChange={function(e){ setEditEq(Object.assign({},editEq,{brand:e.target.value})); }}/></Fld>
+            <Fld label="Model"><input style={INP} value={editEq.model} onChange={function(e){ setEditEq(Object.assign({},editEq,{model:e.target.value})); }}/></Fld>
+            <Fld label="Serial Number"><input style={INP} value={editEq.serial} onChange={function(e){ setEditEq(Object.assign({},editEq,{serial:e.target.value})); }}/></Fld>
+            <Fld label="Owner"><input style={INP} value={editEq.owner||""} onChange={function(e){ setEditEq(Object.assign({},editEq,{owner:e.target.value})); }}/></Fld>
+            <Fld label="Photo"><PhotoBtn photo={editEq.photo} onChange={function(p){ setEditEq(Object.assign({},editEq,{photo:p})); }}/></Fld>
+            <div style={FOOT}>
+              <button style={CANCELBTN} onClick={function(){ setEditEq(null); }}>Cancel</button>
+              <button style={SAVEBTN} onClick={saveEditEq}>Save</button>
+            </div>
+          </Modal>
+        )}
+
+        {deleteEqId && (
+          <Modal title="Delete Equipment?" onClose={function(){ setDeleteEqId(null); }}>
+            <p style={{color:"#64748b",marginBottom:16}}>This will permanently delete this equipment and all its tasks and history.</p>
+            <div style={FOOT}>
+              <button style={CANCELBTN} onClick={function(){ setDeleteEqId(null); }}>Cancel</button>
+              <button style={{background:"#ef4444",color:"white",border:"none",padding:"8px 16px",borderRadius:7,cursor:"pointer",fontSize:13,fontWeight:600}} onClick={function(){ delEquip(deleteEqId); }}>Delete</button>
+            </div>
+          </Modal>
+        )}
+
+        {showAddTask && (
+          <Modal title="Add Task" onClose={function(){ setShowAddTask(false); }}>
+            <Fld label="Task Name *"><input style={INP} value={newTask.name} onChange={function(e){ setNewTask(Object.assign({},newTask,{name:e.target.value})); }} placeholder="e.g. Change oil"/></Fld>
+            <Fld label="Interval (days)"><input type="number" style={INP} value={newTask.intervalDays} onChange={function(e){ setNewTask(Object.assign({},newTask,{intervalDays:e.target.value})); }}/></Fld>
+            <Fld label="Last Done"><input type="date" style={INP} value={newTask.lastDone} onChange={function(e){ setNewTask(Object.assign({},newTask,{lastDone:e.target.value})); }}/></Fld>
+            <div style={FOOT}>
+              <button style={CANCELBTN} onClick={function(){ setShowAddTask(false); }}>Cancel</button>
+              <button style={SAVEBTN} onClick={addTask}>Add Task</button>
+            </div>
+          </Modal>
+        )}
+
+        {editTask && (
+          <Modal title="Edit Task" onClose={function(){ setEditTask(null); }}>
+            <Fld label="Task Name *"><input style={INP} value={editTask.name} onChange={function(e){ setEditTask(Object.assign({},editTask,{name:e.target.value})); }}/></Fld>
+            <Fld label="Interval (days)"><input type="number" style={INP} value={editTask.intervalDays} onChange={function(e){ setEditTask(Object.assign({},editTask,{intervalDays:e.target.value})); }}/></Fld>
+            <Fld label="Last Done"><input type="date" style={INP} value={editTask.lastDone} onChange={function(e){ setEditTask(Object.assign({},editTask,{lastDone:e.target.value})); }}/></Fld>
+            <div style={FOOT}>
+              <button style={CANCELBTN} onClick={function(){ setEditTask(null); }}>Cancel</button>
+              <button style={SAVEBTN} onClick={saveEditTask}>Save</button>
+            </div>
+          </Modal>
+        )}
+
+        {showAddRem && (
+          <Modal title="Add Reminder" onClose={function(){ setShowAddRem(false); }}>
+            <Fld label="Task *"><input style={INP} value={newRem.text} onChange={function(e){ setNewRem(Object.assign({},newRem,{text:e.target.value})); }} placeholder="e.g. Clean gutters"/></Fld>
+            <Fld label="Category"><select style={INP} value={newRem.category} onChange={function(e){ setNewRem(Object.assign({},newRem,{category:e.target.value})); }}>{REM_CATS.map(function(c){ return <option key={c}>{c}</option>; })}</select></Fld>
+            <Fld label="Due Date"><input type="date" style={INP} value={newRem.dueDate} onChange={function(e){ setNewRem(Object.assign({},newRem,{dueDate:e.target.value})); }}/></Fld>
+            <Fld label="Owner"><input style={INP} value={newRem.owner} onChange={function(e){ setNewRem(Object.assign({},newRem,{owner:e.target.value})); }}/></Fld>
+            <Fld label="Photo"><PhotoBtn photo={newRem.photo} onChange={function(p){ setNewRem(Object.assign({},newRem,{photo:p})); }}/></Fld>
+            <div style={FOOT}>
+              <button style={CANCELBTN} onClick={function(){ setShowAddRem(false); }}>Cancel</button>
+              <button style={SAVEBTN} onClick={addRem}>Add</button>
+            </div>
+          </Modal>
+        )}
+
+        {editRem && (
+          <Modal title="Edit Reminder" onClose={function(){ setEditRem(null); }}>
+            <Fld label="Task *"><input style={INP} value={editRem.text} onChange={function(e){ setEditRem(Object.assign({},editRem,{text:e.target.value})); }}/></Fld>
+            <Fld label="Category"><select style={INP} value={editRem.category} onChange={function(e){ setEditRem(Object.assign({},editRem,{category:e.target.value})); }}>{REM_CATS.map(function(c){ return <option key={c}>{c}</option>; })}</select></Fld>
+            <Fld label="Due Date"><input type="date" style={INP} value={editRem.dueDate||""} onChange={function(e){ setEditRem(Object.assign({},editRem,{dueDate:e.target.value})); }}/></Fld>
+            <Fld label="Owner"><input style={INP} value={editRem.owner||""} onChange={function(e){ setEditRem(Object.assign({},editRem,{owner:e.target.value})); }}/></Fld>
+            <Fld label="Photo"><PhotoBtn photo={editRem.photo} onChange={function(p){ setEditRem(Object.assign({},editRem,{photo:p})); }}/></Fld>
+            <div style={FOOT}>
+              <button style={CANCELBTN} onClick={function(){ setEditRem(null); }}>Cancel</button>
+              <button style={SAVEBTN} onClick={saveEditRem}>Save</button>
+            </div>
+          </Modal>
+        )}
+
+        {showAddProp && (
+          <Modal title="Add Property Job" onClose={function(){ setShowAddProp(false); }}>
+            <Fld label="Title *"><input style={INP} value={newProp.title} onChange={function(e){ setNewProp(Object.assign({},newProp,{title:e.target.value})); }} placeholder="e.g. Fix deck boards"/></Fld>
+            <Fld label="Area"><select style={INP} value={newProp.area} onChange={function(e){ setNewProp(Object.assign({},newProp,{area:e.target.value})); }}>{PROP_AREAS.map(function(a){ return <option key={a}>{a}</option>; })}</select></Fld>
+            <Fld label="Priority"><select style={INP} value={newProp.priority} onChange={function(e){ setNewProp(Object.assign({},newProp,{priority:e.target.value})); }}>{PRIORITIES.map(function(p){ return <option key={p}>{p}</option>; })}</select></Fld>
+            <Fld label="Notes"><textarea style={Object.assign({},INP,{height:70,resize:"vertical"})} value={newProp.notes} onChange={function(e){ setNewProp(Object.assign({},newProp,{notes:e.target.value})); }}/></Fld>
+            <Fld label="Owner"><input style={INP} value={newProp.owner} onChange={function(e){ setNewProp(Object.assign({},newProp,{owner:e.target.value})); }}/></Fld>
+            <Fld label="Photo"><PhotoBtn photo={newProp.photo} onChange={function(p){ setNewProp(Object.assign({},newProp,{photo:p})); }}/></Fld>
+            <div style={FOOT}>
+              <button style={CANCELBTN} onClick={function(){ setShowAddProp(false); }}>Cancel</button>
+              <button style={SAVEBTN} onClick={addProp}>Add</button>
+            </div>
+          </Modal>
+        )}
+
+        {editProp && (
+          <Modal title="Edit Property Job" onClose={function(){ setEditProp(null); }}>
+            <Fld label="Title *"><input style={INP} value={editProp.title} onChange={function(e){ setEditProp(Object.assign({},editProp,{title:e.target.value})); }}/></Fld>
+            <Fld label="Area"><select style={INP} value={editProp.area} onChange={function(e){ setEditProp(Object.assign({},editProp,{area:e.target.value})); }}>{PROP_AREAS.map(function(a){ return <option key={a}>{a}</option>; })}</select></Fld>
+            <Fld label="Priority"><select style={INP} value={editProp.priority} onChange={function(e){ setEditProp(Object.assign({},editProp,{priority:e.target.value})); }}>{PRIORITIES.map(function(p){ return <option key={p}>{p}</option>; })}</select></Fld>
+            <Fld label="Notes"><textarea style={Object.assign({},INP,{height:70,resize:"vertical"})} value={editProp.notes||""} onChange={function(e){ setEditProp(Object.assign({},editProp,{notes:e.target.value})); }}/></Fld>
+            <Fld label="Owner"><input style={INP} value={editProp.owner||""} onChange={function(e){ setEditProp(Object.assign({},editProp,{owner:e.target.value})); }}/></Fld>
+            <Fld label="Photo"><PhotoBtn photo={editProp.photo} onChange={function(p){ setEditProp(Object.assign({},editProp,{photo:p})); }}/></Fld>
+            <div style={FOOT}>
+              <button style={CANCELBTN} onClick={function(){ setEditProp(null); }}>Cancel</button>
+              <button style={SAVEBTN} onClick={saveEditProp}>Save</button>
+            </div>
+          </Modal>
+        )}
+
+        {showDataTools && (
+          <Modal title="Data Tools" onClose={function(){ setShowDataTools(false); setImportError(""); }}>
+            <p style={{color:"#64748b",fontSize:13,marginBottom:16}}>Export your data as a backup file, or import a previous backup.</p>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <button style={Object.assign({},ADDBTN,{textAlign:"center"})} onClick={exportData}>Download Backup File</button>
+              <label style={{display:"block",background:"#f1f5f9",color:"#475569",border:"none",padding:"8px 16px",borderRadius:7,cursor:"pointer",fontSize:13,textAlign:"center"}}>
+                Choose Backup File
+                <input type="file" accept=".json" style={{display:"none"}} onChange={importData}/>
+              </label>
+            </div>
+            {importError && <div style={{color:"#ef4444",fontSize:13,marginTop:12}}>{importError}</div>}
+          </Modal>
+        )}
+
+      </main>
+
+      {showInstallBanner && (
+        <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:999,padding:"12px 16px",background:"#1e3a5f",boxShadow:"0 -4px 20px rgba(0,0,0,0.2)"}}>
+          <div style={{maxWidth:960,margin:"0 auto",display:"flex",alignItems:"center",gap:12}}>
+            <div style={{fontSize:32,flexShrink:0}}>&#x1F3E0;</div>
+            <div style={{flex:1}}>
+              <div style={{color:"white",fontWeight:700,fontSize:14,marginBottom:2}}>Add HomeKeep to your Home Screen</div>
+              <div style={{color:"#93c5fd",fontSize:12}}>Tap Share then "Add to Home Screen" for the full app experience</div>
+            </div>
+            <button onClick={function(){ setShowInstallBanner(false); localStorage.setItem("hk_install_dismissed","1"); }} style={{background:"none",border:"none",color:"#93c5fd",fontSize:22,cursor:"pointer",padding:"4px 8px",flexShrink:0}}>x</button>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+ReactDOM.render(React.createElement(App, null), document.getElementById("root"));
+
+</script>
+
+<script>
+setTimeout(function() {
+  var splash = document.getElementById('splash');
+  if (splash) {
+    splash.classList.add('hidden');
+    setTimeout(function() { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 400);
+  }
+}, 800);
+
+// Pull to refresh on iPhone
+var startY = 0;
+document.addEventListener('touchstart', function(e) {
+  startY = e.touches[0].clientY;
+}, {passive: true});
+document.addEventListener('touchend', function(e) {
+  var endY = e.changedTouches[0].clientY;
+  var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+  if (endY - startY > 80 && scrollTop === 0) {
+    window.location.reload();
+  }
+}, {passive: true});
+</script>
+
+</body>
+</html>
